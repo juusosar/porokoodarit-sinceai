@@ -72,7 +72,7 @@ CI fails if either generated file is stale.
 
 ## Web UI (from Lovable)
 `app/web` is the Lovable design (original export kept at repo root `frontend/`), ported to a static SPA on our API:
-- Host chat (profiling with "Grant") -> `POST /v1/chat` (our LLM adapter, scripted fallback). Was Lovable AI gateway.
+- Host chat (profiling with "Gront") -> `POST /v1/chat` (our LLM adapter, scripted fallback). Was Lovable AI gateway.
 - Fit + reasons -> `POST /v1/fit`, host walkthrough + voice -> `POST /v1/explain` (+ `/v1/speak`). Was "pending validation".
 - Saved fitting, extra data, head selection -> browser localStorage (30 days). Was Lovable Cloud (Supabase).
 - Swing video -> read on the device with MediaPipe pose (tempo); never uploaded. Was a private cloud upload.
