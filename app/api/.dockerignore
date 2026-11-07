@@ -1,0 +1,13 @@
+# Context for api/Dockerfile. Keeps local secrets + caches out of the image.
+.env
+.env.*
+!.env.example
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
+lab_data
+tests
+eval
