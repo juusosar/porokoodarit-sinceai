@@ -77,15 +77,19 @@ export function useSwingUpload(enabled: boolean) {
       const plausible = !!candidate && plausibleTempo(candidate) && swingRecordSchema.shape.tempo.safeParse(candidate).success;
       // Too slow for a real swing at normal speed: most likely a slow-motion file read as normal speed (POR-30).
       const looksSlowMo = !!candidate && slowMo === 1 && (candidate.backswingS > PLAUSIBLE.backswingS[1] || candidate.downswingS > PLAUSIBLE.downswingS[1]);
+      if (looksSlowMo) {
+        // Stay on the preview with the file kept, so the speed picker and "Try again" are right there.
+        setPhase('preview');
+        setError('This swing looks like slow motion. Pick its speed under “Video speed” and tap Try again, or continue: we’ll use your answers.');
+        return;
+      }
       const saved: SwingRecord = {
         filename: file.name, size: file.size, encodedFps: timing?.encodedFps ?? null, slowMo, analyzedAt: new Date().toISOString(),
         tempo: plausible ? candidate : null,
       };
       saveSwing(getFittingToken(), saved);
       setRecord(saved); setProgress(100); setPhase('saved');
-      if (!saved.tempo) setError(looksSlowMo
-        ? 'This swing looks like slow motion. Pick the slow-motion speed above and read it again, or continue: we’ll use your answers.'
-        : `Couldn’t read your swing timing${result.error ? ` (${result.error})` : candidate ? ' (timing looked off)' : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
+      if (!saved.tempo) setError(`Couldn’t read your swing timing${result.error ? ` (${result.error})` : candidate ? ' (timing looked off)' : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
     } catch (e) {
       if (c.signal.aborted || (e as Error).name === 'AbortError') { setPhase('preview'); return; }
       setError(e instanceof Error && !e.message.startsWith('[') ? e.message : 'Could not read your video. Try again.'); setPhase('preview');

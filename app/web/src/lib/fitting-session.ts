@@ -1,11 +1,17 @@
 import { sessionTokenSchema } from "./fitting-schema";
+import { sweepExpired } from "./local-store";
 
 const KEY = "takomo-fitting-session";
 // Blocked storage (private mode, strict settings): keep the token for this page load so the flow still works.
 let memoryToken: string | null = null;
+let swept = false;
 
 /** Call only after hydration or in an event handler. Only the capability is stored locally. */
 export function getFittingToken(): string {
+  if (!swept) {
+    swept = true;
+    sweepExpired(); // older fittings' records expire after 30 days too, not only the current one
+  }
   let existing: string | null = memoryToken;
   try {
     existing = localStorage.getItem(KEY) ?? memoryToken;

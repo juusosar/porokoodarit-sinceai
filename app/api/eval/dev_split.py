@@ -8,6 +8,8 @@
         golfers who report it (optional slider), ball flight
         skipped for >92 scorers or carry <= 120 yd, no photos / radar / lie tests; swing tempo from the
         on-device video; "+LM" adds the launch-monitor speed for golfers who have a TrackMan session.
+        Upper bound on two inputs: priorities go in as the lab's clean list (the app derives them from chat
+        text), and height / wrist-to-floor are always sent (the app sends "Not sure" for untouched sliders).
   Each E run is reported with and without the golfer's own 7-iron loft (the web asks it as optional).
 
 Tune on --split train only; dev is for reporting.
@@ -132,7 +134,7 @@ class Split:
         return FitRequest(step="eval", answers=a, measurements=Measurements(**m))
 
     def ui_request(self, r, launch_monitor: bool) -> FitRequest:
-        """Mirror web/src/lib/fit-request.ts + QuickCard: only inputs the shipped UI sends."""
+        """Inputs the shipped UI can send (web/src/lib/fit-request.ts + QuickCard); see E-UI caveats above."""
         chars = [c for c in str(r.characteristics).split("|") if c and c != "nan"]
         carry = nn(r.reported_7i_carry_yd) if r.speed_or_carry == "carry" else None
         asks_flight = int(r.score_bucket) != 5 and not (carry is not None and carry <= 120)

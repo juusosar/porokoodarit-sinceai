@@ -17,7 +17,7 @@ import { HeadSelectionOverlay } from '@/components/HeadSelectionOverlay';
 import { FittingData } from '@/components/FittingData';
 import { ClubReveal } from '@/components/ClubReveal';
 import { HearItButton, lineOf, useSpeakLine, VoiceToggle } from '@/features/voice';
-import type { FitState } from '@/types/fit-state';
+import type { FitState, Reason } from '@/types/fit-state';
 
 export const Route = createFileRoute('/clubs')({ head: () => ({ meta: [
   { title: 'Your Iron Fit | Takomo Golf' }, { name: 'description', content: 'Your Takomo iron fit: head, shaft, length, lie and grip, with the reasons behind each.' },
@@ -55,7 +55,7 @@ function Clubs() {
   const primaryId = headIdSchema.safeParse(headPart?.value).data ?? order[0] ?? '101-mkii';
   const secondaryId = order.find(h => h !== primaryId) ?? (primaryId === '101-mkii' ? '201-mkii' : '101-mkii');
   const primary = HEADS[primaryId], secondary = HEADS[secondaryId];
-  const why = (fit.explanation?.source === 'llm' ? fit.explanation.parts['head'] : undefined) || (headPart?.reasons ?? []).slice(0, 2).map(renderReason).join(' ');
+  const why = (fit.explanation?.source === 'llm' ? fit.explanation.parts['head'] : undefined) || headWhy(headPart?.reasons ?? []);
   const close = headPart?.close_call;
   const loading = fitting.loading || (confirmed && (extras.loading || fit.loading || (!state && !fit.error)));
   return <main className="enrichment-theme min-h-screen bg-background font-sans text-foreground"><header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-background px-5 py-4 md:px-8"><span className="font-display text-2xl font-bold italic">TAKOMO</span><span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><VoiceToggle /><span>Find my fit · <span className="text-primary">Step 4 / 4</span></span></span></header><section className="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-10">
@@ -83,4 +83,12 @@ function DeleteMyData() {
   return <div className="mt-6 text-xs text-muted-foreground">{ask
     ? <p className="flex flex-wrap items-center gap-2">Delete your answers, swing timing and saved fit from this device?<Button variant="destructive" size="sm" onClick={() => { clearAllLocal(); window.location.assign('/'); }}>Delete</Button><Button variant="ghost" size="sm" onClick={() => setAsk(false)}>Cancel</Button></p>
     : <Button variant="link" className="h-auto px-0 text-xs text-muted-foreground" onClick={() => setAsk(true)}>Delete my data from this device</Button>}</div>;
+}
+
+/** Template "why": the golfer's own priorities first (strong or where the rival is better), then skill/speed. */
+const HEAD_WHY_FIRST = ['HEAD_PRIORITY', 'HEAD_ALT_STRONGER'];
+function headWhy(reasons: Reason[]): string {
+  const first = reasons.filter(r => HEAD_WHY_FIRST.includes(r.code));
+  const rest = reasons.filter(r => !HEAD_WHY_FIRST.includes(r.code));
+  return [...first, ...rest].slice(0, 2).map(renderReason).join(' ');
 }

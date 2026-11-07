@@ -116,13 +116,25 @@ PRIORITY_RATING = {
 }
 
 
-def _priority_split(head_slug: str, rival: str, priorities: list[str]) -> tuple[list[str], list[str]]:
-    """Priorities where the chosen head rates at least as well as the rival (strong), and where it doesn't."""
-    hr, rr = C.head(head_slug)["ratings"], C.head(rival)["ratings"]
+STRONG_RATING = 3  # a head is only "strong" on a priority at 3+ of 5 (offset: 2 or less for "less offset")
+
+
+def _priority_split(head_slug: str, rival: str | None, priorities: list[str]) -> tuple[list[str], list[str]]:
+    """(strong, weak): priorities the pick is genuinely good at (absolute bar and >= rival), and priorities
+    the rival rates better on. A priority that is neither (both heads mediocre) is left unsaid."""
+    hr = C.head(head_slug)["ratings"]
+    rr = C.head(rival)["ratings"] if rival else None
     strong, weak = [], []
     for c in priorities:
         key, up = PRIORITY_RATING[c]
-        (strong if (hr[key] >= rr[key] if up else hr[key] <= rr[key]) else weak).append(c)
+        good = hr[key] >= STRONG_RATING if up else hr[key] <= 5 - STRONG_RATING
+        if c == "forged feel":
+            good = head_slug in FORGED
+        beats = rr is None or (hr[key] >= rr[key] if up else hr[key] <= rr[key])
+        if good and beats:
+            strong.append(c)
+        elif rr is not None and not beats:
+            weak.append(c)
     return strong, weak
 
 
@@ -242,8 +254,8 @@ def run(req: FitRequest) -> FitState:
 
     # ---------------------------------------------------------------- head
     p, alt, q = _discrete(p_top, head_slug)
-    # runner-up for "why this one": the close-call head, else the next best by score
-    rival = alt if alt and q >= 0.1 else next(s for s, _, _ in R.score_heads(base) if s != head_slug)
+    # rival for "why this one": only a head still in contention (>= 10 %), so the explainer may name it
+    rival = alt if alt and q >= 0.1 else None
     strong, weak = _priority_split(head_slug, rival, a.characteristics[:3])
     reasons = []
     if src["score"] != E.default:
@@ -258,7 +270,7 @@ def run(req: FitRequest) -> FitState:
                 params={"alternative": C.head(rival)["name"], "priorities": ", ".join(weak)},
             )
         )
-    if score_bucket == 5 and swing_bucket in (4, 5):
+    if score_bucket == 5 and swing_bucket in (4, 5) and src["score"] != E.default:
         reasons.append(Reason(code="HEAD_OVER92_CAP"))
     if "forgiveness" in a.characteristics[:3] and head_slug not in FORGED and rival in FORGED:
         reasons.append(Reason(code="HEAD_FORGIVENESS_PENALTY"))
