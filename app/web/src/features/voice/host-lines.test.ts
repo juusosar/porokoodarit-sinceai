@@ -32,6 +32,15 @@ describe("fixed host lines", () => {
     expect(await loadTokens()).toEqual({});
   });
 
+  it("server errors are retried on the next screen", async () => {
+    const fetch = vi.fn(() => Promise.resolve(new Response("", { status: 503 })));
+    vi.stubGlobal("fetch", fetch);
+    const { loadTokens } = await import("./host-lines");
+    expect(await loadTokens()).toEqual({});
+    await loadTokens();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("voice off makes no request", async () => {
     window.__TAKOMO_ENV__ = { VITE_VOICE: "off" };
     const fetch = vi.fn();
