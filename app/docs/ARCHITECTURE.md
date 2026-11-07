@@ -14,7 +14,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 | `app/api` | FastAPI + Pydantic v2, Python 3.12 | Cloud Run, min 1 instance (US) | Engine, fusion, LLM + TTS proxy, settings. Keys server-side only. |
 | `app/vision` | YOLO11m club tracking (ONNX / TensorRT FP16) | Modal GPU (T4/L4) | Opt-in upload of ~1.5 s 640px clip, deleted after. Feature flag. |
 | `app/shared` | JSON Schema (from Pydantic) + reason codes | Both | `fit_state.schema.json` → TS types via `npm run gen:types`. CI checks drift. |
-| LLM | Own thin `LLMProvider` adapter; Gemini first | Called from API | Roles → models in config. Demo panel switch only when `TAKOMO_DEMO_MODE=true`. JSON output + spec-match guard + template fallback. |
+| LLM | Own thin `LLMProvider` adapter; Gemini first | Called from API | Roles → models in config. Demo panel switch only when `TAKOMO_DEMO_MODE=true` + `X-Demo-Token`, model allowlist. `/v1/explain` takes inputs (FitRequest), re-runs the engine server-side, never a client state. JSON output validated (Pydantic) + spec-match guard + template fallback; rate limit + body cap per instance. |
 | Jev (TypeSafe) | Optional adapter | Called from API | Flagged. Normaliser / guardrail / close-call 2nd opinion. Never decides. |
 | Voice | `TTSProvider` (ElevenLabs Flash) | Called from API | Fixed lines pre-generated, dynamic lines after guardrail. Captions always on. |
 | Storage | Browser state; opt-in MongoDB Atlas | Browser / Atlas | "Save my fitting" (no media, 30 d) + anonymous events. |
