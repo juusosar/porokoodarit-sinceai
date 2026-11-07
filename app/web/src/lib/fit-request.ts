@@ -16,6 +16,8 @@ const CHARS: [RegExp, Char][] = [
   [/more offset/i, "more offset"],
 ];
 const LAUNCH_MONITOR_SD_MPH = 1.5; // same error model as the legacy launch monitor step
+const LAUNCH_MONITOR_SD = { carry: 2, launch: 0.5, spin: 150, landing: 0.7 }; // session means, our assumption
+const BALL_LINE_SHOT_SD_DEG = 1.65; // lab: per-shot scatter of the transferred line
 const IN_CM = 2.54;
 
 const num = (s: string | undefined) => {
@@ -88,9 +90,30 @@ export function toFitRequest(
     if (extras.speed !== null && extras.speed >= 30 && extras.speed <= 130)
       measurements.speed_7i_mph = { value: extras.speed, sd: LAUNCH_MONITOR_SD_MPH, source: "measured", method: "launch_monitor" };
     if (extras.carry !== null) {
+      // A launch-monitor carry is a measurement: no over-report correction (the engine applies that only to
+      // a remembered carry). It also replaces the remembered carry in the engine.
       const yd = Math.round(convertCarry(extras.carry, extras.unit, "yd"));
-      if (yd >= 40 && yd <= 260) answers.carry_7i_yd = yd; // report beats a remembered carry
+      if (yd >= 40 && yd <= 260)
+        measurements.carry_7i_yd = { value: yd, sd: LAUNCH_MONITOR_SD.carry, source: "measured", method: "launch_monitor" };
     }
+    const lm = (v: number | null | undefined, lo: number, hi: number, sd: number) =>
+      v !== null && v !== undefined && v >= lo && v <= hi ? { value: v, sd, source: "measured" as const, method: "launch_monitor" } : undefined;
+    const launch = lm(extras.launch, 5, 40, LAUNCH_MONITOR_SD.launch);
+    const spin = lm(extras.spin, 1000, 12000, LAUNCH_MONITOR_SD.spin);
+    const landing = lm(extras.landing, 15, 65, LAUNCH_MONITOR_SD.landing);
+    if (launch) measurements.launch_deg = launch;
+    if (spin) measurements.spin_rpm = spin;
+    if (landing) measurements.landing_deg = landing;
+  }
+  const shots = extras && !extras.skipped ? (extras.ballLine ?? []) : [];
+  if (shots.length) {
+    const mean = shots.reduce((a, b) => a + b, 0) / shots.length;
+    measurements.ball_line_tilt_deg = {
+      value: Math.round(mean * 10) / 10,
+      sd: Math.round((BALL_LINE_SHOT_SD_DEG / Math.sqrt(shots.length)) * 100) / 100,
+      source: "measured",
+      method: `ball_line_tap_n${shots.length}`,
+    };
   }
   if (swing?.tempo) {
     const { backswingS, downswingS, sd } = swing.tempo;

@@ -47,16 +47,33 @@ export type Margin = number;
 export type NoteCode = string | null;
 export type Unit = string;
 /**
+ * Input key, e.g. 'speed_7i_mph', 'flight', 'tempo'
+ */
+export type Input = string;
+/**
+ * Display text, e.g. 'Launch monitor speed'
+ */
+export type Label = string;
+export type Method = string | null;
+/**
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
  * via the `definition` "EvidenceSource".
  */
 export type EvidenceSource = "asked" | "measured" | "estimated" | "default";
 /**
+ * Display value with unit, e.g. '82 mph'
+ */
+export type Value = string;
+/**
+ * Share of the estimate (inverse-variance weight); 1 = decided it
+ */
+export type Weight = number;
+/**
  * e.g. 'questionnaire', 'photo', 'video_240fps'
  */
-export type Method = string | null;
+export type Method1 = string | null;
 export type Sd = number;
-export type Value = number;
+export type Value1 = number;
 export type Buildable = boolean;
 /**
  * Diff vs previous state
@@ -68,21 +85,45 @@ export type Head = "101-mkii" | "201-mkii" | "201t-mkii" | "301-cb" | "301-mb";
 export type Probability = number;
 export type Score = number;
 export type HeadOptions = HeadOption[];
+/**
+ * Reason code for the prompt line
+ */
+export type Code = string;
+/**
+ * Expected confidence gain, weighted sum over parts
+ */
+export type Gain = number;
+/**
+ * What to add, e.g. 'ball_line_test', 'launch_monitor'
+ */
+export type Input1 = string;
+/**
+ * Parts it would firm up
+ */
+export type Parts = SpecPart[];
+/**
+ * Best inputs to add next, highest gain first
+ */
+export type NextSteps = NextStep[];
 export type Confidence = number;
 export type Evidence = EvidenceSource[];
 /**
+ * Evidence chain behind the value
+ */
+export type Inputs = EvidenceItem[];
+/**
  * Display text, e.g. '+0.5 in', 'KBS Tour Lite R'
  */
-export type Label = string;
+export type Label1 = string;
 /**
  * Id from reason_codes.json, e.g. 'LENGTH_FROM_HEIGHT'
  */
-export type Code = string;
+export type Code1 = string;
 export type Reasons = Reason[];
 /**
  * Chosen value; None = not enough evidence yet
  */
-export type Value1 = string | number | null;
+export type Value2 = string | number | null;
 export type SchemaVersion = "1";
 export type Step = string;
 /**
@@ -101,6 +142,10 @@ export type StockValue = string;
  * Parts that make the fit custom
  */
 export type Blockers = StockBlocker[];
+/**
+ * Custom parts where standard is nearly as likely (stock worth considering)
+ */
+export type CloseCallParts = SpecPart[];
 export type OneTweakFromStock = boolean;
 export type Recommended = "stock" | "custom";
 export type Warnings = Reason[];
@@ -156,6 +201,20 @@ export interface CloseCall {
   unit: Unit;
 }
 /**
+ * One input behind a part, with its share of the fused estimate (the "Why" drawer).
+ *
+ * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
+ * via the `definition` "EvidenceItem".
+ */
+export interface EvidenceItem {
+  input: Input;
+  label: Label;
+  method?: Method;
+  source: EvidenceSource;
+  value: Value;
+  weight: Weight;
+}
+/**
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
  * via the `definition` "FitRequest".
  */
@@ -177,11 +236,16 @@ export interface FitRequest {
  */
 export interface Measurements {
   backswing_s?: Observation | null;
+  ball_line_tilt_deg?: Observation | null;
+  carry_7i_yd?: Observation | null;
   downswing_s?: Observation | null;
   hand_length_cm?: Observation | null;
   height_cm?: Observation | null;
+  landing_deg?: Observation | null;
+  launch_deg?: Observation | null;
   lie_need_deg?: Observation | null;
   speed_7i_mph?: Observation | null;
+  spin_rpm?: Observation | null;
   wrist_to_floor_cm?: Observation | null;
 }
 /**
@@ -191,10 +255,10 @@ export interface Measurements {
  * via the `definition` "Observation".
  */
 export interface Observation {
-  method?: Method;
+  method?: Method1;
   sd: Sd;
   source: EvidenceSource;
-  value: Value;
+  value: Value1;
 }
 /**
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
@@ -205,7 +269,8 @@ export interface FitState {
   changes?: Changes;
   estimates?: Estimates;
   head_options?: HeadOptions;
-  parts: Parts;
+  next_steps?: NextSteps;
+  parts: Parts1;
   schema_version?: SchemaVersion;
   step: Step;
   stock_advice?: StockAdvice | null;
@@ -234,7 +299,19 @@ export interface HeadOption {
   probability: Probability;
   score: Score;
 }
-export interface Parts {
+/**
+ * A missing or weak input, ranked by how much it would raise confidence.
+ *
+ * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
+ * via the `definition` "NextStep".
+ */
+export interface NextStep {
+  code: Code;
+  gain: Gain;
+  input: Input1;
+  parts?: Parts;
+}
+export interface Parts1 {
   [k: string]: PartState;
 }
 /**
@@ -245,21 +322,22 @@ export interface PartState {
   close_call?: CloseCall | null;
   confidence: Confidence;
   evidence?: Evidence;
-  label: Label;
+  inputs?: Inputs;
+  label: Label1;
   part: SpecPart;
   /**
    * Plausible numeric range (length/lie)
    */
   range?: Range | null;
   reasons?: Reasons;
-  value: Value1;
+  value: Value2;
 }
 /**
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
  * via the `definition` "Reason".
  */
 export interface Reason {
-  code: Code;
+  code: Code1;
   params?: Params;
 }
 export interface Params {
@@ -273,6 +351,7 @@ export interface Params {
  */
 export interface StockAdvice {
   blockers?: Blockers;
+  close_call_parts?: CloseCallParts;
   one_tweak_from_stock?: OneTweakFromStock;
   recommended: Recommended;
   stock_alternative?: StockAlternative;

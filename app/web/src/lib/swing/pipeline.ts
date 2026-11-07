@@ -186,6 +186,7 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
     }
     const coarse = detectPhases({ x: hx, y: hy }, coarseFps * slowMo);
     const events = Object.fromEntries(EVENTS.map((e) => [e, ts1[coarse.frames[e]]])) as Record<SwingEvent, number>;
+    const takeawayT = ts1[coarse.takeaway] ?? events.Address; // tempo starts here, not at main's Address
 
     // ---- pass 2: pose + club at clip frame rate around the downswing
     const window =
@@ -269,7 +270,7 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
       clipFps,
       events,
       slowMo,
-      tempo: tempo(events.Address / slowMo, events.Top / slowMo, events.Impact / slowMo),
+      tempo: tempo(Math.max(takeawayT, events.Address) / slowMo, events.Top / slowMo, events.Impact / slowMo),
       clubPathDeg:
         impact2 >= 0
           ? clubPathDeg(wx2, impact2, fps2 * slowMo)
