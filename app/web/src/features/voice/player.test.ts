@@ -22,7 +22,7 @@ beforeEach(() => {
   window.__TAKOMO_ENV__ = { VITE_API_URL: "https://api.test" };
   vi.stubGlobal(
     "Audio",
-    vi.fn((src?: string) => {
+    vi.fn(function (src?: string) {
       const h: Record<string, () => void> = {};
       const a: FakeAudio = {
         src: src ?? "",
@@ -39,7 +39,7 @@ beforeEach(() => {
   );
   vi.stubGlobal(
     "SpeechSynthesisUtterance",
-    vi.fn((t: string) => ({ text: t })),
+    vi.fn(function (t: string) { return { text: t }; }),
   );
   Object.defineProperty(window, "speechSynthesis", {
     configurable: true,
