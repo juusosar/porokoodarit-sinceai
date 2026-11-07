@@ -19,6 +19,14 @@ _VERTEX_ALIASES = {
     "gemini-pro-latest": "gemini-3.8-flash",
 }
 
+# Not every model accepts every thinking level (e.g. some reject MINIMAL; Gemini 3 Pro takes low/high only).
+# On a 400 "Thinking level is unsupported" retry once with the next level, and remember it per model.
+_LEVEL_FALLBACK: dict[str, str] = {"minimal": "low", "medium": "high"}
+
+
+def _unsupported_level(e: Exception) -> bool:
+    return "thinking level is unsupported" in str(e).lower()
+
 
 class GeminiProvider:
     name = "gemini"
@@ -36,6 +44,7 @@ class GeminiProvider:
         self._project = project
         self._location = location
         self._client = None
+        self._level_override: dict[tuple[str, str], str] = {}  # (model, asked level) -> accepted level
         if vertex and not project:
             log.warning("TAKOMO_GEMINI_VERTEX is on but TAKOMO_GCP_PROJECT is empty: using templates")
 
@@ -54,25 +63,39 @@ class GeminiProvider:
         return self._client
 
     def generate_json(self, req: LLMRequest) -> dict[str, Any]:
-        from google.genai import types
-
-        thinking = types.ThinkingConfig(thinking_level=req.thinking_level.upper()) if req.thinking_level else None
         model = _VERTEX_ALIASES.get(req.model, req.model) if self._vertex else req.model
+        asked = req.thinking_level.lower()
+        level = self._level_override.get((model, asked), asked)
         t0 = time.perf_counter()
         try:
-            resp = self._get().models.generate_content(
-                model=model,
-                contents=req.user,
-                config=types.GenerateContentConfig(
-                    system_instruction=req.system,
-                    temperature=req.temperature,
-                    response_mime_type="application/json",
-                    response_json_schema=req.json_schema,
-                    thinking_config=thinking,
-                    http_options=types.HttpOptions(timeout=int(req.timeout_s * 1000)),
-                ),
-            )
+            try:
+                text = self._call(model, req, level)
+            except Exception as e:
+                nxt = _LEVEL_FALLBACK.get(level)
+                if not (nxt and _unsupported_level(e)):
+                    raise
+                log.warning("gemini model=%s rejects thinking %s, using %s", model, level, nxt)
+                self._level_override[(model, asked)] = nxt
+                text = self._call(model, req, nxt)
             log.info("gemini model=%s %.0f ms", model, (time.perf_counter() - t0) * 1000)
-            return json.loads(resp.text or "")
+            return json.loads(text or "")
         except Exception as e:  # network, quota, safety block, bad JSON
             raise LLMError(f"gemini: {type(e).__name__}: {e}") from e
+
+    def _call(self, model: str, req: LLMRequest, level: str) -> str | None:
+        from google.genai import types
+
+        thinking = types.ThinkingConfig(thinking_level=level.upper()) if level else None
+        resp = self._get().models.generate_content(
+            model=model,
+            contents=req.user,
+            config=types.GenerateContentConfig(
+                system_instruction=req.system,
+                temperature=req.temperature,
+                response_mime_type="application/json",
+                response_json_schema=req.json_schema,
+                thinking_config=thinking,
+                http_options=types.HttpOptions(timeout=int(req.timeout_s * 1000)),
+            ),
+        )
+        return resp.text
