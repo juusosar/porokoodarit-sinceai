@@ -5,8 +5,8 @@ import { drawSkeleton } from '@/lib/pose/overlay';
 import type { SwingAnalysis } from '@/lib/pose/analyze';
 import framing from '@/assets/swing-framing-face-on.jpg';
 
-export function GrantMessage({ message }: { message: string }) {
-  return <div className="flex items-center gap-4 border-b border-border pb-6"><img src="/images/grant-avatar.png" alt="Grant Horvat" className="h-20 w-20 shrink-0 rounded-lg border border-primary object-cover md:h-24 md:w-24" /><div><p className="text-xs uppercase tracking-widest text-primary">Grant · AI-assisted fitter</p><p className="mt-2 max-w-lg text-lg font-medium leading-snug">{message}</p></div></div>;
+export function GrontMessage({ message }: { message: string }) {
+  return <div className="flex items-center gap-4 border-b border-border pb-6"><img src="/images/host-avatar.png" alt="Gront Harvot" className="h-20 w-20 shrink-0 rounded-lg border border-primary object-cover md:h-24 md:w-24" /><div><p className="text-xs uppercase tracking-widest text-primary">Gront · AI-assisted fitter</p><p className="mt-2 max-w-lg text-lg font-medium leading-snug">{message}</p></div></div>;
 }
 export function SwingChecklist() {
   return <div className="space-y-5"><p className="text-xs uppercase tracking-widest text-muted-foreground">A good video starts here</p>{[['01', 'Film from the front', 'Chest towards the camera. Keep the whole shaft in frame.'], ['02', 'Show your feet & the ball', 'Stay centred. Leave room for the full swing.'], ['03', 'Use your 7-iron', 'One normal shot, not a practice swing.']].map(([n, title, detail]) => <div key={n} className="flex gap-4"><span className="font-display text-3xl italic text-primary">{n}</span><div><h2 className="font-medium">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{detail}</p></div></div>)}<p className="flex gap-2 border-t border-border pt-4 text-sm text-muted-foreground"><Zap className="size-4 shrink-0 text-primary" />Use slow motion: 240 fps. Otherwise, 60 fps or higher. Bright daylight helps.</p></div>;
