@@ -213,3 +213,11 @@ def test_gemini_vertex_available_without_key():
     assert not GeminiProvider(None, vertex=True).available()  # project required
     assert GeminiProvider(None, vertex=True, project="p").available()
     assert GeminiProvider("k").available()
+
+
+def test_llm_limits_per_role():
+    from takomo_api.config import Settings
+
+    s = Settings(_env_file=None)
+    assert s.llm_limits("step_line") == (6.0, "minimal")
+    assert s.llm_limits("final_walkthrough") == (12.0, "low")
