@@ -17,6 +17,7 @@ class RoleConfig:
     model: str
 
 
+# Overrides live in process memory: per API instance, lost on restart. Fine for a one-instance demo.
 _overrides: dict[str, RoleConfig] = {}
 _providers: dict[str, LLMProvider] = {}
 

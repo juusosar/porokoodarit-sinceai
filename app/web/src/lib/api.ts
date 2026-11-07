@@ -21,10 +21,10 @@ export async function getSettings(): Promise<LlmSettings> {
   return r.json();
 }
 
-export async function putSettings(roles: Record<string, RoleSetting>): Promise<LlmSettings> {
+export async function putSettings(roles: Record<string, RoleSetting>, demoToken: string): Promise<LlmSettings> {
   const r = await fetch(`${API_URL}/v1/settings`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Demo-Token": demoToken },
     body: JSON.stringify(roles),
   });
   if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);

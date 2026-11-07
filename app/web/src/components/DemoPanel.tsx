@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { getSettings, putSettings, type LlmSettings } from "@/lib/api";
 
 // Hidden demo panel (open with ?demo=1). Switches LLM provider/model per role at runtime.
-// The API only accepts changes when TAKOMO_DEMO_MODE=true.
+// The API only accepts changes when TAKOMO_DEMO_MODE=true and the X-Demo-Token matches TAKOMO_DEMO_TOKEN.
 // eslint-disable-next-line react-refresh/only-export-components
 export function demoEnabled(): boolean {
   try {
@@ -18,6 +18,7 @@ export function DemoPanel() {
   const [open, setOpen] = useState(false);
   const [s, setS] = useState<LlmSettings | null>(null);
   const [msg, setMsg] = useState("");
+  const [token, setToken] = useState("");
 
   useEffect(() => {
     if (open) getSettings().then(setS, (e) => setMsg(String(e)));
@@ -60,11 +61,21 @@ export function DemoPanel() {
               </fieldset>
             ))}
           {s && (
+            <input
+              aria-label="demo token"
+              type="password"
+              placeholder="demo token"
+              className="w-full bg-background p-1"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+            />
+          )}
+          {s && (
             <Button
               size="sm"
               disabled={!s.demo_mode}
               onClick={() =>
-                putSettings(s.roles).then(
+                putSettings(s.roles, token).then(
                   (n) => (setS(n), setMsg("Saved")),
                   (e) => setMsg(String(e)),
                 )
