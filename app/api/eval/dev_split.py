@@ -132,7 +132,7 @@ class Split:
     def engine(self, evidence: bool) -> pd.DataFrame:
         rows = []
         for _, r in self.q.iterrows():
-            P = F.run(self.request(r, evidence)).parts
+            P = F.run(self.request(r, evidence), plan_next=False).parts
             rows.append(
                 {
                     "golfer_id": r.golfer_id,

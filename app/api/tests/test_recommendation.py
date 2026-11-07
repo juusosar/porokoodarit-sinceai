@@ -78,7 +78,7 @@ def test_landing_angle_sets_flight_over_the_answer():
     sh = s.parts["shaft"]
     assert any(r.code == "FLIGHT_FROM_LAUNCH" and r.params["flight"] == "low" for r in sh.reasons)
     assert "measured" in sh.evidence
-    assert any(i.input == "flight" and i.value.startswith("low") for i in sh.inputs)
+    assert any(i.input == "flight" and "→ low" in i.value for i in sh.inputs)
 
 
 def test_launch_and_spin_without_landing():

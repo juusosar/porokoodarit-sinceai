@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronDown, Link2, SlidersHorizontal, Activity, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, Link2, SlidersHorizontal, Activity, Loader2, ShieldCheck, Ruler } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuestionInfo } from '@/components/QuestionInfo';
+import { BallLineTest } from '@/components/BallLineTest';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useFitting } from '@/hooks/use-fitting';
@@ -16,7 +17,7 @@ export const Route = createFileRoute('/enrichment')({ head: () => ({ meta: [
   { property: 'og:title', content: 'Extra Fitting Data | Takomo Golf' }, { property: 'og:description', content: 'Your numbers, your fitting. Optional extra data without the guesswork.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary' },
 ] }), component: EnrichmentPage });
 
-const metrics = [{ key: 'speed', label: 'Clubhead speed', unit: 'mph', max: 200 }, { key: 'carry', label: 'Carry distance', unit: '', max: 500 }, { key: 'launch', label: 'Launch angle', unit: '°', max: 90 }, { key: 'spin', label: 'Spin rate', unit: 'rpm', max: 20000 }] as const;
+const metrics = [{ key: 'speed', label: 'Clubhead speed', unit: 'mph', max: 200 }, { key: 'carry', label: 'Carry distance', unit: '', max: 500 }, { key: 'launch', label: 'Launch angle', unit: '°', max: 90 }, { key: 'spin', label: 'Spin rate', unit: 'rpm', max: 20000 }, { key: 'landing', label: 'Landing angle', unit: '°', max: 70 }] as const;
 function EnrichmentPage() {
   const fitting = useFitting();
   const confirmed = fitting.snapshot?.confirmed === true;
@@ -29,6 +30,7 @@ function EnrichmentPage() {
   const [linkStatus, setLinkStatus] = useState('');
   const [manual, setManual] = useState(false);
   const [trackmanOpen, setTrackmanOpen] = useState(false);
+  const [ballLineOpen, setBallLineOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const submitting = useRef(false);
@@ -79,6 +81,11 @@ function EnrichmentPage() {
           <Button variant="link" className="mt-2 px-0" onClick={() => setValues({})}>Clear measurements</Button>
         </div>}
         </div>
+      </section>
+      <section data-scroll-reveal className="border-b border-border py-7">
+        <h2><Button type="button" variant="ghost" aria-expanded={ballLineOpen} aria-controls="ball-line-details" onClick={() => setBallLineOpen(open => !open)} className="h-auto w-full justify-between px-0 py-0 font-display text-2xl font-bold uppercase italic"><span className="flex items-center gap-3"><Ruler className="size-5 text-primary" />Ball-line lie test <span className="font-sans text-xs font-normal not-italic text-muted-foreground">Optional</span></span><ChevronDown className={`size-5 text-primary transition-transform ${ballLineOpen ? 'rotate-180' : ''}`} /></Button></h2>
+        <p className="mt-3 text-sm text-muted-foreground">The best way to check your lie angle at home: a marker line on the ball leaves a mark on the face that shows how the club sat at impact.{form.ballLine.length ? ` ${form.ballLine.length} shot${form.ballLine.length > 1 ? 's' : ''} saved.` : ''}</p>
+        <div id="ball-line-details" hidden={!ballLineOpen}><BallLineTest shots={form.ballLine} onChange={ballLine => setForm(v => ({ ...v, ballLine }))} disabled={locked} /></div>
       </section>
       <section data-scroll-reveal className="border-b border-border py-7"><div className="flex items-center justify-between gap-4"><h2 className="flex items-center gap-3 font-display text-2xl font-bold uppercase italic"><SlidersHorizontal className="size-5 text-primary" />Face impact <span className="font-sans text-xs font-normal not-italic text-muted-foreground">Optional</span></h2><Switch aria-label="Enable face impact" checked={form.impactEnabled} onCheckedChange={impactEnabled => setForm(v => ({ ...v, impactEnabled, impact: impactEnabled ? v.impact : null }))} /></div><p className="mt-3 text-muted-foreground">No need to overdo it. If you know your usual strike location, add it here.</p>
         <QuestionInfo field="impact" label="Face impact" />

@@ -147,6 +147,9 @@ def _tempo_likelihood(back: float, down: float, sd: float) -> dict[str, float]:
     }
 
 
+# Observations converted from another quantity (carry -> speed, score -> speed): shown as approximate.
+CONVERTED = {"launch_monitor_carry", "carry_loft_corrected", "score_prior"}
+
 METHOD_LABEL = {
     "population_prior": "Typical golfer (starting point)",
     "questionnaire": "Your answer",
@@ -175,7 +178,12 @@ def _label(o) -> str:
 def _items(input_key: str, est: Fu.Estimate, fmt) -> list[EvidenceItem]:
     out = [
         EvidenceItem(
-            input=input_key, label=_label(o), value=fmt(o.value), source=o.source, method=o.method, weight=round(w, 3)
+            input=input_key,
+            label=_label(o),
+            value=f"≈{fmt(o.value)} (converted)" if o.method in CONVERTED else fmt(o.value),
+            source=o.source,
+            method=o.method,
+            weight=round(w, 3),
         )
         for o, w in est.items
         if w >= 0.01
@@ -354,7 +362,15 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
     shaft_inputs = list(speed_items)
     if flight_est is not None:
         o = flight_est.items[0][0]
-        shaft_inputs.append(_cat_item("flight", _label(o), f"{flight} (lands ~{o.value:.0f}°)", E.measured, o.method))
+        shaft_inputs.append(
+            _cat_item(
+                "flight",
+                _label(o),
+                f"needs ~{o.value:.0f}° landing → {flight}" + (" (weighed with your answer)" if a.flight else ""),
+                E.measured,
+                o.method,
+            )
+        )
     elif a.flight is not None:
         shaft_inputs.append(_cat_item("flight", "Your ball flight answer", flight, E.asked, "questionnaire"))
     if tempo_like is not None:

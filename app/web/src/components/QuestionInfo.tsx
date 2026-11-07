@@ -19,7 +19,8 @@ const reasons: Record<string, string> = {
   trackman: 'Session numbers can add context beyond estimates. Link import isn’t connected yet; manually entered numbers stay labelled as self-reported.',
   club: 'Different clubs produce different numbers. We keep another club’s data separate so it doesn’t get mistaken for your 7-iron results.',
   speed: 'Clubhead speed helps inform shaft-flex discussions. Your entered speed is self-reported, and a validated shaft match is still needed.',
-  launch: 'Launch angle adds context to how the ball leaves the club. It is not an attack-angle measurement or a confirmed head recommendation.',
+  launch: 'Launch angle, with spin and club speed, lets us estimate your ball flight when you don’t have a landing angle. It is not an attack-angle measurement.',
+  landing: 'Landing angle (TrackMan “Land. Ang.”) shows how steeply your 7-iron comes down. It is the best single number for the ball flight your shaft should give you.',
   spin: 'Spin adds context to flight and stopping power. Strike, ball and conditions also affect it, so it can’t decide your fitting alone.',
   impact: 'Your usual strike location adds context to mishits. Heel or toe contact alone doesn’t tell us your lie angle or justify an automatic adjustment.',
 };
