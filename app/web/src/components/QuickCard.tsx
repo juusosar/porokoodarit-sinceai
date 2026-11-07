@@ -25,6 +25,7 @@ export const CARDS: CardDef[] = [
     questions: [
       { key: "score", label: "Typical 18-hole score", type: "choice", options: ["<71", "71–77", "78–84", "85–92", ">92"], initial: "" },
       { key: "carry", label: "Average 7-iron carry", type: "range", min: 80, max: 200, step: 5, unit: " yd", initial: 140, unknown: true },
+      { key: "speed", label: "7-iron club speed, if you know it", type: "range", min: 50, max: 110, step: 1, unit: " mph", initial: 75, unknown: true, optional: true },
       { key: "loft", label: "Your current 7-iron loft, if you know it", type: "range", min: 26, max: 36, step: 0.5, unit: "°", initial: 31, unknown: true, optional: true },
       { key: "development", label: "Over the next few years, where do you see your game heading?", type: "choice", options: ["Better golf is on the menu", "Same game, same swagger", "My best golf might be behind me"], initial: "" },
       { key: "flight", label: "Ball flight", type: "choice", options: ["Low", "Medium", "High", "Not sure"], initial: "" },

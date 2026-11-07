@@ -4,6 +4,10 @@
   B2  same rules, answers replaced by phone / launch-monitor measurements
   E1  this engine, answers only (fusion with priors, no measurements)
   E2  this engine, answers + every measurement as an Observation with its SD
+  E-UI  this engine fed only what the shipped web app collects: no age or tempo question, speed only from
+        golfers who report it (optional slider), ball flight
+        skipped for >92 scorers or carry <= 120 yd, no photos / radar / lie tests; swing tempo from the
+        on-device video; "+LM" adds the launch-monitor speed for golfers who have a TrackMan session.
   Each E run is reported with and without the golfer's own 7-iron loft (the web asks it as optional).
 
 Tune on --split train only; dev is for reporting.
@@ -75,7 +79,9 @@ class Split:
         self.toe = tk.groupby("golfer_id").impact_toe_up_deg.mean()
         self.tilt = self.tests[self.tests.test == "ball_line_tilt"].groupby("golfer_id").value.mean()
 
-    def request(self, r, evidence: bool) -> FitRequest:
+    def request(self, r, evidence: bool | str) -> FitRequest:
+        if evidence in ("ui", "ui_lm"):
+            return self.ui_request(r, evidence == "ui_lm")
         chars = [c for c in str(r.characteristics).split("|") if c and c != "nan"]
         a = Answers(
             age=int(r.age),
@@ -125,7 +131,37 @@ class Split:
                 m["lie_need_deg"] = ob(-self.tilt.loc[gid], SD["lie_tilt"])
         return FitRequest(step="eval", answers=a, measurements=Measurements(**m))
 
-    def engine(self, evidence: bool) -> pd.DataFrame:
+    def ui_request(self, r, launch_monitor: bool) -> FitRequest:
+        """Mirror web/src/lib/fit-request.ts + QuickCard: only inputs the shipped UI sends."""
+        chars = [c for c in str(r.characteristics).split("|") if c and c != "nan"]
+        carry = nn(r.reported_7i_carry_yd) if r.speed_or_carry == "carry" else None
+        asks_flight = int(r.score_bucket) != 5 and not (carry is not None and carry <= 120)
+        a = Answers(
+            sex=r.sex,
+            hand=r.handedness,
+            score_bucket=int(r.score_bucket),
+            # the UI asks carry; club speed is an optional slider, assumed used by golfers who know it
+            speed_7i_mph=nn(r.reported_7i_speed_mph) if r.speed_or_carry == "speed" else None,
+            carry_7i_yd=carry,
+            own_7i_loft_deg=nn(self.golfers.loc[r.golfer_id].own_7i_loft_deg) if self.use_loft else None,
+            characteristics=chars[:3],
+            flight=r.flight if asks_flight else None,
+            height_cm=r.height_cm,
+            wrist_to_floor_cm=r.wrist_to_floor_cm,
+            glove=r.glove,
+        )
+        m: dict[str, Observation] = {}
+        gid, p = r.golfer_id, self.phone.loc[r.golfer_id]
+        if nn(p.backswing_video_s) is not None:
+            fps = nn(p.swing_video_fps) or 30.0
+            sd = 1 / fps + TEMPO_EXTRA_SD_S
+            m["backswing_s"] = ob(p.backswing_video_s, sd)
+            m["downswing_s"] = ob(p.downswing_video_s, sd)
+        if launch_monitor and gid in self.tm.index:
+            m["speed_7i_mph"] = ob(self.tm.loc[gid], SD["speed_trackman"])
+        return FitRequest(step="eval", answers=a, measurements=Measurements(**m))
+
+    def engine(self, evidence: bool | str) -> pd.DataFrame:
         rows = []
         for _, r in self.q.iterrows():
             P = F.run(self.request(r, evidence)).parts
@@ -196,6 +232,8 @@ def main(argv=None) -> int:
         "E2 engine, answers + evidence": s.engine(True),
         "E1+loft (golfer knows own 7i loft)": s_loft.engine(False),
         "E2+loft": s_loft.engine(True),
+        "E-UI shipped web inputs (answers + video tempo)": s.engine("ui"),
+        "E-UI+LM (+ launch monitor speed when available)": s.engine("ui_lm"),
     }
     rows = []
     for name, pred in runs.items():
