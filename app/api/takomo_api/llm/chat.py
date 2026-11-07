@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
 import time
 from functools import lru_cache
@@ -53,8 +54,11 @@ OUTPUT_SCHEMA = {
 }
 
 
+VALUE_MAX = 60  # "Forgiveness, distance control, forged feel" is 42 chars
+
+
 class FieldValue(BaseModel):
-    value: str = Field(min_length=1, max_length=40)
+    value: str = Field(min_length=1, max_length=VALUE_MAX)
     status: Literal["sure", "guess"]
 
 
@@ -262,10 +266,112 @@ def unwrap(raw: object) -> object:
     }
 
 
+def _clip(text: str, n: int, seps: str) -> str:
+    """Cut to n chars at the last separator (comma, sentence end) so labels and lines stay whole."""
+    if len(text) <= n:
+        return text
+    text = " ".join(text.split())
+    cut = text[:n]
+    i = max(cut.rfind(c) for c in seps)
+    if i > n // 2:
+        return cut[: i + 1].rstrip(" ,;")
+    return text[: n - 1].rstrip(" ,;") + "…"  # no separator: hard cut, still within n
+
+
+def tidy(raw: object) -> object:
+    """Fix harmless format slips before validation instead of throwing the whole turn away
+    (most bad_output fallbacks were one over-long label): clip long labels and lines, map an
+    unknown status to "guess", stringify numbers, drop unusable fields."""
+    if not isinstance(raw, dict):
+        return raw
+    out = dict(raw)
+    if isinstance(out.get("reply"), str):
+        out["reply"] = _clip(out["reply"], 600, ".!?")
+    prof = out.get("profile")
+    if isinstance(prof, dict):
+        clean: dict[str, object] = {}
+        for k, v in prof.items():
+            val = v.get("value") if isinstance(v, dict) else None
+            if isinstance(val, bool) or not isinstance(val, (str, int, float)):
+                continue
+            value = _clip(str(val).strip(), VALUE_MAX, ",;")
+            if value:
+                clean[k] = {"value": value, "status": v.get("status") if v.get("status") == "sure" else "guess"}
+        out["profile"] = clean
+    return out
+
+
 def _public(why: str) -> str:
     if registry.get_settings().demo_mode:
         return why[:200]
     return why.split(":", 1)[0]
+
+
+class _Fail(Exception):
+    def __init__(self, why: str, backoff: bool = False):
+        super().__init__(why)
+        self.why, self.backoff = why, backoff
+
+
+# Quota / overload: wait a moment before the retry. Timeouts and bad output retry at once.
+_BACKOFF = re.compile(r"\b(429|503)\b|RESOURCE_EXHAUSTED|UNAVAILABLE", re.I)
+
+
+def _attempt(provider, model: str, user: str, timeout_s: float, thinking: str) -> _LLMOut:
+    """One model call, validated and guarded. Raises _Fail with the fallback reason."""
+    s = registry.get_settings()
+    try:
+        raw = provider.generate_json(
+            LLMRequest(
+                system=system_prompt(),
+                user=user,
+                json_schema=OUTPUT_SCHEMA,
+                model=model,
+                timeout_s=timeout_s,
+                thinking_level=thinking,
+                temperature=0.6,
+                max_output_tokens=s.llm_max_output_tokens_chat or None,
+            )
+        )
+        out = _LLMOut.model_validate(tidy(unwrap(raw)))
+    except LLMError as e:
+        raise _Fail(f"llm_error: {e}", backoff=bool(_BACKOFF.search(str(e)))) from e
+    except ValidationError as e:
+        where = ", ".join(".".join(map(str, x["loc"])) for x in e.errors()[:3])
+        raise _Fail(f"bad_output: {e.error_count()} errors ({where})") from e
+    except JsonReply:
+        raise _Fail("bad_output: json in reply") from None
+    except Exception as e:  # never 500 on chat
+        log.exception("chat model=%s error", model)
+        raise _Fail(f"error: {type(e).__name__}") from e
+    if problem := guard(out):
+        raise _Fail(f"guard: {problem}")
+    return out
+
+
+def warmup() -> None:
+    """Tiny call per chat model at startup: opens the client (TLS, ADC token) and lets the adapter learn
+    which thinking level each model accepts, so the first golfer doesn't pay for either."""
+    s = registry.get_settings()
+    cfg = registry.role_config("chat")
+    provider = registry.providers().get(cfg.provider)
+    if not s.llm_warmup or provider is None or not provider.available():
+        return
+    for model in dict.fromkeys(m for m in (cfg.model, s.llm_model_chat_fallback) if m):
+        try:
+            provider.generate_json(
+                LLMRequest(
+                    system="Answer with JSON.",
+                    user="ping",
+                    json_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+                    model=model,
+                    timeout_s=15,
+                    thinking_level=s.llm_limits("chat")[1],
+                    max_output_tokens=s.llm_max_output_tokens_chat or None,
+                )
+            )
+        except Exception as e:  # warmup is best effort
+            log.warning("chat warmup model=%s failed: %s", model, str(e)[:200])
 
 
 def chat(req: ChatRequest) -> ChatReply:
@@ -274,37 +380,31 @@ def chat(req: ChatRequest) -> ChatReply:
     provider = registry.providers().get(cfg.provider)
     if cfg.provider == "template" or provider is None or not provider.available():
         return template_reply(req, "unavailable", t0)
+    s = registry.get_settings()
     user = build_context(req)
-    timeout_s, thinking = registry.get_settings().llm_limits("chat")
-    try:
-        raw = provider.generate_json(
-            LLMRequest(
-                system=system_prompt(),
-                user=user,
-                json_schema=OUTPUT_SCHEMA,
-                model=cfg.model,
-                timeout_s=timeout_s,
-                thinking_level=thinking,
-                temperature=0.6,
-            )
-        )
-        out = _LLMOut.model_validate(unwrap(raw))
-        problem = guard(out)
-    except LLMError as e:
-        log.warning("chat fallback model=%s llm_error: %s", cfg.model, str(e)[:500])
-        return template_reply(req, _public(f"llm_error: {e}"), t0)
-    except ValidationError as e:
-        log.warning("chat fallback model=%s bad_output: %s", cfg.model, e.error_count())
-        return template_reply(req, _public(f"bad_output: {e.error_count()} errors"), t0)
-    except JsonReply:
-        log.warning("chat fallback model=%s bad_output: json in reply", cfg.model)
-        return template_reply(req, _public("bad_output: json in reply"), t0)
-    except Exception as e:  # never 500 on chat
-        log.exception("chat fallback model=%s error", cfg.model)
-        return template_reply(req, _public(f"error: {type(e).__name__}"), t0)
-    if problem:
-        log.warning("chat fallback model=%s guard: %s", cfg.model, problem)
-        return template_reply(req, _public(f"guard: {problem}"), t0)
+    budget, thinking = s.llm_limits("chat")
+    # Primary try, then one retry on the fallback model (a different model also has its own quota).
+    tries = [(cfg.model, min(s.llm_attempt_s_chat, budget))]
+    if s.llm_model_chat_fallback:
+        tries.append((s.llm_model_chat_fallback, 0.0))
+    out, model, why = None, cfg.model, ""
+    retry_min = max(s.llm_retry_min_s_chat, 0.5)  # never send a ~0 s timeout (the SDK reads 0 as none)
+    for i, (model, limit) in enumerate(tries):
+        left = budget - (time.perf_counter() - t0)
+        if i and left < retry_min:
+            log.warning("chat fallback: %.1f s left, no retry", left)
+            break
+        try:
+            out = _attempt(provider, model, user, min(limit, left) if limit else left, thinking)
+            break
+        except _Fail as f:
+            why = f.why
+            log.warning("chat failed model=%s %s", model, why[:500])
+            spare = budget - (time.perf_counter() - t0) - retry_min  # after this attempt's own time
+            if f.backoff and i + 1 < len(tries) and spare > 0:
+                time.sleep(min(0.4 + random.random() * 0.6, spare))
+    if out is None:
+        return template_reply(req, _public(why), t0)
     profile = {k: v for k, v in out.profile.items() if k in PROFILE_FIELDS and v is not None}
     reply = out.reply
     # The UI only shows Yes/No after this exact question: never leave the golfer without buttons.
@@ -313,7 +413,7 @@ def chat(req: ChatRequest) -> ChatReply:
     return ChatReply(
         source="llm",
         provider=cfg.provider,
-        model=cfg.model,
+        model=model,
         latency_ms=int((time.perf_counter() - t0) * 1000),
         reply=reply,
         profile=profile,

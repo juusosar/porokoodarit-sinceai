@@ -112,13 +112,13 @@ export async function postChat(
   const r = await fetch(`${API_URL}/v1/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // API accepts 1-40 char labels; trim rather than fail every later turn with 422.
+    // API accepts 1-60 char labels (VALUE_MAX in api/takomo_api/llm/chat.py); trim rather than fail every later turn with 422.
     body: JSON.stringify({
       messages,
       profile: Object.fromEntries(
         Object.entries(profile)
           .filter(([, f]) => f.value.trim())
-          .map(([k, f]) => [k, { value: f.value.trim().slice(0, 40), status: f.status }]),
+          .map(([k, f]) => [k, { value: f.value.trim().slice(0, 60), status: f.status }]),
       ),
     }),
     signal,
