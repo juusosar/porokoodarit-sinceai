@@ -12,6 +12,7 @@ from . import __version__
 from .config import get_settings
 from .engine import fit as engine
 from .llm import registry
+from .llm.chat import ChatReply, ChatRequest, chat
 from .llm.explain import Explanation, Role, explain
 from .ratelimit import RateLimiter, client_key
 from .schema import SCHEMA_VERSION, FitRequest, FitState
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
         expose_headers=["X-Cache"],
     )
     limiter = RateLimiter(settings.explain_rate_per_min)
+    chat_limiter = RateLimiter(settings.explain_rate_per_min)
     # Voice (TTS) is a self-contained module: TAKOMO_TTS_PROVIDER=none leaves no route and no token behind.
     voice_on = voice.enabled()
     if voice_on:
@@ -78,6 +80,13 @@ def create_app() -> FastAPI:
         if voice_on:
             out.audio_token = voice.audio_token(out.spoken_line)
         return out
+
+    @app.post("/v1/chat", response_model=ChatReply)
+    def chat_turn(req: ChatRequest, request: Request) -> ChatReply:
+        """One profiling chat turn with the host. Never fails: falls back to scripted replies."""
+        if not chat_limiter.allow(client_key(request)):
+            raise HTTPException(429, "too many chat calls, slow down")
+        return chat(req)
 
     class RoleSetting(BaseModel):
         provider: str
