@@ -120,7 +120,7 @@
     },
     "HEAD_ALT_STRONGER": {
       "part": "head",
-      "text": "{alternative} rates higher on {priorities}; this head won on your score and swing speed."
+      "text": "{alternative} rates higher on {priorities}; this head fits the rest of your game better."
     },
     "SHAFT_LAUNCH": {
       "part": "shaft",
