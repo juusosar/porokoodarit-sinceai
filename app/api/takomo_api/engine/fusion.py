@@ -144,6 +144,43 @@ def fuse(a: Answers, m: Measurements) -> Fused:
     return Fused(height=height, w2f=w2f, speed=speed, hand=hand, lie=lie, lie_measured=m.lie_need_deg is not None)
 
 
+CONTRADICTION_Z = 2.5  # asked vs measured this many combined SDs apart -> ask a follow-up (POR-15)
+UNITS = {"height_cm": "cm", "wrist_to_floor_cm": "cm", "speed_7i_mph": "mph"}
+
+
+def contradictions(a: Answers, m: Measurements) -> list[dict]:
+    """Inputs where the golfer's answer and a measurement disagree beyond noise.
+
+    The UI turns each into one follow-up question ("which is right?") and drops the losing source:
+    params.input = answer key to clear, params.measurement = measurement key to clear.
+    """
+    out = []
+
+    def check(answer_key: str, asked: list[Observation], meas_key: str, asked_val: float, asked_unit: str) -> None:
+        meas = getattr(m, meas_key)
+        if not asked or meas is None:
+            return
+        o = asked[0]
+        if abs(o.value - meas.value) / math.hypot(o.sd, meas.sd) > CONTRADICTION_Z:
+            out.append(
+                {
+                    "input": answer_key,
+                    "measurement": meas_key,
+                    "asked": round(asked_val, 1),
+                    "asked_unit": asked_unit,
+                    "measured": round(meas.value, 1),
+                    "unit": UNITS[meas_key],
+                }
+            )
+
+    for name in UNITS:
+        if getattr(a, name) is not None:
+            check(name, _asked(name, getattr(a, name)), name, getattr(a, name), UNITS[name])
+    if a.carry_7i_yd is not None:
+        check("carry_7i_yd", [carry_to_speed(a.carry_7i_yd, a.own_7i_loft_deg)], "speed_7i_mph", a.carry_7i_yd, "yd")
+    return out
+
+
 # ------------------------------------------------------------------ discretisation helpers
 SPEED_EDGES = [60.0, 70.0, 80.0, 90.0]  # bucket 1 | 2 | 3 | 4 | 5 (whole-number pack ranges, see rules)
 
