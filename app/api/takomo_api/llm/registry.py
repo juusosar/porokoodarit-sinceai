@@ -36,7 +36,7 @@ def role_config(role: str) -> RoleConfig:
     if role in _overrides:
         return _overrides[role]
     s = get_settings()
-    model = s.llm_model_final if role == "final_walkthrough" else s.llm_model_step
+    model = {"final_walkthrough": s.llm_model_final, "chat": s.llm_model_chat}.get(role, s.llm_model_step)
     return RoleConfig(provider=s.llm_provider, model=model)
 
 

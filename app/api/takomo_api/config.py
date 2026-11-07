@@ -28,9 +28,20 @@ class Settings(BaseSettings):
     llm_timeout_s_final: float = 12.0
     llm_thinking_level_step: str = "minimal"
     llm_thinking_level_final: str = "low"
-    # /v1/chat: whole conversation in the prompt -> bigger input; keep thinking minimal so replies stay fast.
+    # /v1/chat (POR-25): profile extraction + 1-3 sentences, so a lite model by default. Typical calls take
+    # 2-6 s with rare 12 s+ tails and 429s (shared Vertex quota). TIMEOUT_S_CHAT is the budget for the whole
+    # turn: the first try gets ATTEMPT_S_CHAT, then one retry on MODEL_CHAT_FALLBACK with what is left
+    # (if at least RETRY_MIN_S_CHAT), then the scripted reply.
+    llm_model_chat: str = "gemini-flash-lite-latest"
+    llm_model_chat_fallback: str = "gemini-flash-latest"  # "" = no retry
     llm_timeout_s_chat: float = 12.0
+    llm_attempt_s_chat: float = 7.0
+    llm_retry_min_s_chat: float = 3.0
     llm_thinking_level_chat: str = "minimal"
+    # Runaway cap only (thinking tokens may count toward it on Gemini 3); a normal chat reply is ~150 tokens.
+    llm_max_output_tokens_chat: int = 2048
+    # Open the client (TLS + ADC token) and learn accepted thinking levels at startup, off the request path.
+    llm_warmup: bool = True
     gemini_api_key: str | None = None
     # Keyless alternative: Vertex AI via Application Default Credentials (Cloud Run service account,
     # or `gcloud auth application-default login` locally). Takes precedence over the API key.
@@ -75,6 +86,7 @@ class Settings(BaseSettings):
         return {m.strip() for m in self.llm_model_allowlist.split(",") if m.strip()} | {
             self.llm_model_step,
             self.llm_model_final,
+            self.llm_model_chat,
             "-",
         }
 
