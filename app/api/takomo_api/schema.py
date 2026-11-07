@@ -115,7 +115,7 @@ MEASUREMENT_BOUNDS = {
 
 class FitRequest(_Model):
     schema_version: Literal["1"] = SCHEMA_VERSION
-    step: str = Field(description="UI step that triggered this run, e.g. 'profile', 'swing'")
+    step: str = Field(pattern=r"^[a-z_]{1,32}$", description="UI step that triggered this run, e.g. 'profile', 'swing'")
     answers: Answers = Field(default_factory=Answers)
     measurements: Measurements = Field(default_factory=Measurements)
     previous: FitState | None = Field(default=None, description="Last fit state, used to build the diff")

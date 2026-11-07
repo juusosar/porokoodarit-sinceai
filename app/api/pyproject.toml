@@ -8,6 +8,7 @@ dependencies = [
   "uvicorn[standard]>=0.30",
   "pydantic>=2.8",
   "pydantic-settings>=2.4",
+  "google-genai>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -21,7 +22,7 @@ build-backend = "setuptools.build_meta"
 include = ["takomo_api*"]
 
 [tool.setuptools.package-data]
-takomo_api = ["data/*.json"]
+takomo_api = ["data/*.json", "prompts/*.md"]
 
 [tool.ruff]
 line-length = 120
