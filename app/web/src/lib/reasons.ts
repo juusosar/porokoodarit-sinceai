@@ -8,7 +8,8 @@ const CODES = (codes as { codes: Record<string, Code> }).codes;
 export function renderReason(r: Reason): string {
   const tpl = CODES[r.code]?.text ?? r.code;
   const params = (r.params ?? {}) as Record<string, unknown>;
-  return tpl.replace(/\{(\w+)\}/g, (_, k: string) =>
+  const text = tpl.replace(/\{(\w+)\}/g, (_, k: string) =>
     params[k] === undefined || params[k] === null ? "?" : String(params[k]),
   );
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

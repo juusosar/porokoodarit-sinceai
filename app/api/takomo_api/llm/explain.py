@@ -116,11 +116,12 @@ class _Safe(dict):
 
 def render(reason: Reason) -> str:
     tpl = reason_codes().get(reason.code, {}).get("text", reason.code)
-    return string.Formatter().vformat(tpl, (), _Safe(reason.params))
+    text = string.Formatter().vformat(tpl, (), _Safe(reason.params))
+    return text[:1].upper() + text[1:]
 
 
 def template_explanation(state: FitState, role: Role, why: str | None = None, t0: float | None = None) -> Explanation:
-    parts = {k: " ".join(render(r) for r in p.reasons[:2]) for k, p in state.parts.items()}
+    parts = {k: " ".join(render(r) for r in p.reasons) for k, p in state.parts.items()}
     if role == "final_walkthrough" or not state.changes:
         h = state.parts.get(SpecPart.head)
         line = f"Your fit: {h.label}." if h else "Here's your fit."

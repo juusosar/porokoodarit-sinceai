@@ -56,7 +56,7 @@
     },
     "GRIP_FROM_GLOVE": {
       "part": "grip",
-      "text": "{grip} grip fits a {glove} glove."
+      "text": "{grip} grip fits glove size {glove}."
     },
     "GRIP_FROM_HAND": {
       "part": "grip",
@@ -76,7 +76,7 @@
     },
     "SPEED_FROM_CARRY": {
       "part": "shaft",
-      "text": "Speed estimated from your carry, adjusted for your club's loft."
+      "text": "Speed estimated from your carry."
     },
     "SPEED_MEASURED": {
       "part": "shaft",
@@ -117,6 +117,42 @@
     "CONTRADICTION": {
       "part": "*",
       "text": "You said {asked} {asked_unit}, but we measured {measured} {unit}. Which is right?"
+    },
+    "HEAD_ALT_STRONGER": {
+      "part": "head",
+      "text": "{alternative} rates higher on {priorities}; this head won on your score and swing speed."
+    },
+    "SHAFT_LAUNCH": {
+      "part": "shaft",
+      "text": "Flight: {launch}."
+    },
+    "SHAFT_WEIGHT_FEEL": {
+      "part": "shaft",
+      "text": "About {weight_g} g: {feel}."
+    },
+    "SHAFT_ALT_TRADEOFF": {
+      "part": "shaft",
+      "text": "{alternative} instead: {tradeoff}."
+    },
+    "CARRY_READ": {
+      "part": "shaft",
+      "text": "You said {said} yd; we use about {used} yd, because most golfers remember their best shots."
+    },
+    "SPEED_FROM_CARRY_LOFT": {
+      "part": "shaft",
+      "text": "Speed estimated from your carry, adjusted for your {loft}° 7-iron."
+    },
+    "SPEED_FROM_CARRY_TYPICAL_LOFT": {
+      "part": "shaft",
+      "text": "Assumes a typical {loft}° 7-iron; lofts differ by brand, so tell us yours to sharpen this."
+    },
+    "LENGTH_EFFECT": {
+      "part": "length",
+      "text": "Too long and you stand up and catch the heel; too short and you hunch over and catch the toe."
+    },
+    "LIE_EFFECT": {
+      "part": "lie",
+      "text": "Each 1° off starts a 7-iron about {offline_yd} yd off line: {upright_dir} if too upright, {flat_dir} if too flat."
     }
   }
 }
