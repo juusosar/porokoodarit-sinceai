@@ -10,7 +10,7 @@ import { argmax, argmin, fillLinear, gradient, rollingMean } from "./series";
 // made fast enough for a phone:
 // - frames are decoded in order with WebCodecs (mediabunny) and resized to 640 px on the GPU: no per-frame seeks
 //   and no full-resolution pixel copies (the old bench spent ~700 of 763 ms/frame there on an iPhone 13)
-// - pass 1: pose only, at 30 fps over the whole clip -> address / top / impact / finish
+// - pass 1: pose only, at 15 fps on 256 px frames over the whole clip -> address / top / impact / finish
 // - pass 2: pose + club detector at the clip's own frame rate, only around the downswing (top - 0.15 s ..
 //   impact + 0.15 s) -> exact top / impact, tempo, path, club track
 // The video never leaves the device.
@@ -22,7 +22,16 @@ const VIS_MIN = 0.2; // phase_detector.py
 const MAX_SECONDS = 10;
 const MARGIN_S = 0.15;
 
-export type StageTiming = { frames: number; ms: number; decodeMs: number; poseMs: number; clubMs: number };
+export type StageTiming = {
+  frames: number;
+  ms: number;
+  decodeMs: number;
+  poseMs: number;
+  clubMs: number;
+  /** Medians: steady-state per-frame cost, without first-run spikes. */
+  poseMedianMs: number;
+  clubMedianMs: number;
+};
 export type SwingPipelineResult = {
   width: number;
   height: number;
@@ -61,10 +70,35 @@ export function interpolateEvents(e: Record<SwingEvent, number>, step: number): 
   return out;
 }
 
-const newTiming = (): StageTiming => ({ frames: 0, ms: 0, decodeMs: 0, poseMs: 0, clubMs: 0 });
+const newTiming = (): StageTiming => ({
+  frames: 0,
+  ms: 0,
+  decodeMs: 0,
+  poseMs: 0,
+  clubMs: 0,
+  poseMedianMs: NaN,
+  clubMedianMs: NaN,
+});
+const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : NaN);
+
+/** Pose input size for pass 1: the model runs at 256 internally, so a smaller frame is cheaper to upload. */
+const POSE_SIZE = 256;
+
+/** Run pose once on a blank frame so the first real frame doesn't pay for GPU setup. Returns ms. */
+export function warmUpPose(landmarker: PoseLandmarker): number {
+  const t = performance.now();
+  const c = document.createElement("canvas");
+  c.width = POSE_SIZE;
+  c.height = POSE_SIZE;
+  c.getContext("2d")!.fillRect(0, 0, POSE_SIZE, POSE_SIZE);
+  const clock = poseTimeline();
+  landmarker.detectForVideo(c, clock(0));
+  landmarker.detectForVideo(c, clock(0.033));
+  return performance.now() - t;
+}
 
 export async function runSwingPipeline(file: File, opts: PipelineOptions): Promise<SwingPipelineResult> {
-  const { detector, landmarker, coarseFps = 30, clubWindow = "downswing", onProgress, signal } = opts;
+  const { detector, landmarker, coarseFps = 15, clubWindow = "downswing", onProgress, signal } = opts;
   const t0 = performance.now();
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
   try {
@@ -78,14 +112,18 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
     const stats = await track.computePacketStats(240);
     const clipFps = stats.averagePacketRate > 0 ? stats.averagePacketRate : null;
     const lb = letterbox(W, H, INPUT);
+    const lb1 = letterbox(W, H, POSE_SIZE);
     const sink = new CanvasSink(track, { width: INPUT, height: INPUT, fit: "contain", poolSize: 2 });
+    const sink1 = new CanvasSink(track, { width: POSE_SIZE, height: POSE_SIZE, fit: "contain", poolSize: 2 });
 
-    // letterboxed 0..1 -> source pixels
-    const px = (l: NormalizedLandmark): Pt => ({
-      x: (l.x * INPUT - lb.padX) / lb.scale,
-      y: (l.y * INPUT - lb.padY) / lb.scale,
-    });
     const pose = (canvas: HTMLCanvasElement | OffscreenCanvas, tsMs: number) => {
+      // letterboxed 0..1 -> source pixels
+      const size = canvas.width;
+      const b = size === INPUT ? lb : lb1;
+      const px = (l: NormalizedLandmark): Pt => ({
+        x: (l.x * size - b.padX) / b.scale,
+        y: (l.y * size - b.padY) / b.scale,
+      });
       const lms = landmarker.detectForVideo(canvas as HTMLCanvasElement, tsMs).landmarks[0];
       if (!lms) return { hands: null, shoulder: null };
       const vis = [lms[L_WRIST], lms[R_WRIST]].filter((l) => (l.visibility ?? 1) > VIS_MIN).map(px);
@@ -107,9 +145,10 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
     );
     const hx: number[] = [];
     const hy: number[] = [];
+    const poseMs1: number[] = [];
     {
       const s = performance.now();
-      const it = sink.canvasesAtTimestamps(ts1);
+      const it = sink1.canvasesAtTimestamps(ts1);
       const clock = poseTimeline();
       try {
         for (let i = 0; ; i++) {
@@ -120,7 +159,8 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
           if (n.done) break;
           const q = performance.now();
           const { hands } = n.value ? pose(n.value.canvas, clock(n.value.timestamp)) : { hands: null };
-          p1.poseMs += performance.now() - q;
+          poseMs1.push(performance.now() - q);
+          p1.poseMs += poseMs1[poseMs1.length - 1];
           hx.push(hands ? hands.x / W : NaN);
           hy.push(hands ? hands.y / H : NaN);
           onProgress?.(1, i + 1, ts1.length);
@@ -129,6 +169,7 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
         await it.return(undefined); // releases mediabunny's decoder + queued frames on stop/error
       }
       p1.frames = hx.length;
+      p1.poseMedianMs = median(poseMs1);
       p1.ms = performance.now() - s;
     }
     const coarse = detectPhases({ x: hx, y: hy }, coarseFps);
@@ -144,6 +185,8 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
     const hands2: (Pt | null)[] = [];
     const shoulder2: (Pt | null)[] = [];
     const raw2: (Pt | null)[] = [];
+    const poseMs2: number[] = [];
+    const clubMs2: number[] = [];
     {
       const s = performance.now();
       const expected = Math.max(1, Math.round((window.end - window.start) * (clipFps ?? 30)));
@@ -158,12 +201,14 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
           if (n.done) break;
           const q = performance.now();
           const { hands, shoulder } = pose(n.value.canvas, clock(n.value.timestamp));
-          p2.poseMs += performance.now() - q;
+          poseMs2.push(performance.now() - q);
+          p2.poseMs += poseMs2[poseMs2.length - 1];
           let club: Pt | null = null;
           if (detector) {
             const c = performance.now();
             const { box } = await detectLetterboxed(detector, n.value.canvas, lb);
-            p2.clubMs += performance.now() - c;
+            clubMs2.push(performance.now() - c);
+            p2.clubMs += clubMs2[clubMs2.length - 1];
             if (box) club = { x: box.x * W, y: box.y * H };
           }
           t2.push(n.value.timestamp);
@@ -176,6 +221,8 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
         await it.return(undefined);
       }
       p2.frames = t2.length;
+      p2.poseMedianMs = median(poseMs2);
+      p2.clubMedianMs = median(clubMs2);
       p2.ms = performance.now() - s;
     }
 
