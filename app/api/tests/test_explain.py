@@ -232,3 +232,25 @@ def test_llm_limits_per_role(monkeypatch):
     assert s.llm_limits("final_walkthrough") == (12.0, "low")
     assert s.llm_limits("chat") == (12.0, "minimal")
     assert s.llm_thinking_level == "low"  # back-compat alias
+
+
+def test_gemini_steps_up_unsupported_thinking_level():
+    from takomo_api.llm.base import LLMRequest
+    from takomo_api.llm.gemini import GeminiProvider
+
+    seen = []
+
+    class Models:
+        def generate_content(self, model, contents, config):
+            level = config.thinking_config.thinking_level if config.thinking_config else None
+            seen.append(str(getattr(level, "value", level)))
+            if "MINIMAL" in seen[-1]:
+                raise RuntimeError("400 INVALID_ARGUMENT. Thinking level is unsupported: THINKING_LEVEL_MINIMAL")
+            return type("R", (), {"text": '{"ok": 1}'})()
+
+    p = GeminiProvider("k")
+    p._client = type("C", (), {"models": Models()})()
+    req = LLMRequest(system="s", user="u", json_schema={}, model="m", timeout_s=5, thinking_level="minimal")
+    assert p.generate_json(req) == {"ok": 1}
+    assert p.generate_json(req) == {"ok": 1}
+    assert ["MINIMAL" in s for s in seen] == [True, False, False]  # retried once, then remembered
