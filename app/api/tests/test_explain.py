@@ -254,3 +254,31 @@ def test_gemini_steps_up_unsupported_thinking_level():
     assert p.generate_json(req) == {"ok": 1}
     assert p.generate_json(req) == {"ok": 1}
     assert ["MINIMAL" in s for s in seen] == [True, False, False]  # retried once, then remembered
+
+
+def test_gemini_logs_tokens_and_errors(caplog):
+    import logging
+
+    from takomo_api.llm.base import LLMError, LLMRequest
+    from takomo_api.llm.gemini import GeminiProvider
+
+    usage = type("U", (), {"prompt_token_count": 900, "candidates_token_count": 60, "thoughts_token_count": 300})()
+    calls = []
+
+    class Models:
+        def generate_content(self, model, contents, config):
+            calls.append(model)
+            if len(calls) > 1:
+                raise type("APIError", (Exception,), {"code": 429})("RESOURCE_EXHAUSTED")
+            return type("R", (), {"text": '{"ok": 1}', "usage_metadata": usage})()
+
+    p = GeminiProvider("k")
+    p._client = type("C", (), {"models": Models()})()
+    req = LLMRequest(system="s", user="u", json_schema={}, model="m", timeout_s=5, thinking_level="low")
+    with caplog.at_level(logging.INFO, logger="takomo_api.llm.gemini"):
+        p.generate_json(req)
+        with pytest.raises(LLMError):
+            p.generate_json(req)
+    lines = [r.getMessage() for r in caplog.records]
+    assert any("level=low" in x and "in=900 out=60 thought=300" in x for x in lines)
+    assert any("error=429" in x for x in lines)

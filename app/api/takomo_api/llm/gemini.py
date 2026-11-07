@@ -28,6 +28,26 @@ def _unsupported_level(e: Exception) -> bool:
     return "thinking level is unsupported" in str(e).lower()
 
 
+def _log_call(model: str, level: str, t0: float, *, resp: Any = None, err: Exception | None = None) -> None:
+    """One greppable line per call (POR-25): latency, thinking level, token counts or error code.
+    Cloud Run: textPayload:"gemini call" -> where the time goes (thinking vs queueing vs quota)."""
+    ms = (time.perf_counter() - t0) * 1000
+    if err is not None:
+        code = getattr(err, "code", None) or getattr(err, "status", None) or type(err).__name__
+        log.warning("gemini call model=%s level=%s ms=%.0f error=%s", model, level or "-", ms, code)
+        return
+    u = getattr(resp, "usage_metadata", None)
+    log.info(
+        "gemini call model=%s level=%s ms=%.0f in=%s out=%s thought=%s",
+        model,
+        level or "-",
+        ms,
+        getattr(u, "prompt_token_count", None),
+        getattr(u, "candidates_token_count", None),
+        getattr(u, "thoughts_token_count", None),
+    )
+
+
 class GeminiProvider:
     name = "gemini"
 
@@ -69,20 +89,22 @@ class GeminiProvider:
         t0 = time.perf_counter()
         try:
             try:
-                text = self._call(model, req, level)
+                resp = self._call(model, req, level)
             except Exception as e:
                 nxt = _LEVEL_FALLBACK.get(level)
                 if not (nxt and _unsupported_level(e)):
                     raise
                 log.warning("gemini model=%s rejects thinking %s, using %s", model, level, nxt)
                 self._level_override[(model, asked)] = nxt
-                text = self._call(model, req, nxt)
-            log.info("gemini model=%s %.0f ms", model, (time.perf_counter() - t0) * 1000)
-            return json.loads(text or "")
+                level = nxt
+                resp = self._call(model, req, nxt)
+            _log_call(model, level, t0, resp=resp)
+            return json.loads(resp.text or "")
         except Exception as e:  # network, quota, safety block, bad JSON
+            _log_call(model, level, t0, err=e)
             raise LLMError(f"gemini: {type(e).__name__}: {e}") from e
 
-    def _call(self, model: str, req: LLMRequest, level: str) -> str | None:
+    def _call(self, model: str, req: LLMRequest, level: str):
         from google.genai import types
 
         thinking = types.ThinkingConfig(thinking_level=level.upper()) if level else None
@@ -98,4 +120,4 @@ class GeminiProvider:
                 http_options=types.HttpOptions(timeout=int(req.timeout_s * 1000)),
             ),
         )
-        return resp.text
+        return resp
