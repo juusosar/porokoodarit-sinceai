@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { UIMessage } from '@/lib/fitting-schema';
 
 export const REPLY_PAUSE_MS = 700;
-export const QUESTION_PAUSE_MS = 2200;
+export const QUESTION_PAUSE_MS = 900;
 export const REVEAL_TICK_MS = 40;
 export const CHARACTERS_PER_TICK = 3;
 

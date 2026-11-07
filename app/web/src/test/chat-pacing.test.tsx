@@ -16,12 +16,12 @@ it('pauses before revealing a reply and reveals it incrementally', () => {
   expect(result.current.questionsReady).toBe(false);
 });
 
-it('waits 2200ms after the full reply before revealing questions', () => {
+it('waits 900ms after the full reply before revealing questions', () => {
   vi.useFakeTimers();
   const { result } = renderHook(() => useChatPacing([reply], false));
   act(() => vi.advanceTimersByTime(880));
   expect(result.current.visibleText(reply)).toBe('Hello there.');
-  act(() => vi.advanceTimersByTime(2199));
+  act(() => vi.advanceTimersByTime(899));
   expect(result.current.questionsReady).toBe(false);
   act(() => vi.advanceTimersByTime(1));
   expect(result.current.questionsReady).toBe(true);

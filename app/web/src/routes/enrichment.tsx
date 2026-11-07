@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronDown, Link2, SlidersHorizontal, Activity, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, SlidersHorizontal, Activity, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuestionInfo } from '@/components/QuestionInfo';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { useFitting } from '@/hooks/use-fitting';
 import { useEnrichment } from '@/hooks/use-enrichment';
 import { saveEnrichment } from '@/lib/enrichment.functions';
 import { getFittingToken } from '@/lib/fitting-session';
-import { carryLimit, convertCarry, emptyEnrichment, enrichmentSchema, trackmanLinkMessage, type Enrichment } from '@/lib/enrichment-schema';
+import { carryLimit, convertCarry, emptyEnrichment, enrichmentSchema, type Enrichment } from '@/lib/enrichment-schema';
 
 export const Route = createFileRoute('/enrichment')({ head: () => ({ meta: [
   { title: 'Extra Fitting Data | Takomo Golf' }, { name: 'description', content: 'Add optional launch monitor numbers and strike observations to your Takomo fitting.' },
@@ -25,8 +25,6 @@ function EnrichmentPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<Enrichment>(emptyEnrichment);
   const [values, setValues] = useState<Record<string, string>>({});
-  const [url, setUrl] = useState('');
-  const [linkStatus, setLinkStatus] = useState('');
   const [manual, setManual] = useState(false);
   const [trackmanOpen, setTrackmanOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -64,25 +62,20 @@ function EnrichmentPage() {
         <h2><Button type="button" variant="ghost" aria-expanded={trackmanOpen} aria-controls="trackman-details" onClick={() => setTrackmanOpen(open => !open)} className="h-auto w-full justify-between px-0 py-0 font-display text-2xl font-bold uppercase italic"><span className="flex items-center gap-3"><Activity className="size-5 text-primary" />TrackMan data</span><ChevronDown className={`size-5 text-primary transition-transform ${trackmanOpen ? 'rotate-180' : ''}`} /></Button></h2>
         <p className="mt-3 text-sm text-muted-foreground">Got TrackMan data? Add it here! Your session numbers give Grant more to go on than estimates alone.</p>
         <div id="trackman-details" hidden={!trackmanOpen}>
-        <p className="mt-3 text-muted-foreground">Have a session report? Use your normal 7-iron numbers.</p>
-        <label htmlFor="trackman-url" className="mb-2 mt-6 block text-sm">TrackMan session link</label>
-        <div className="flex flex-col gap-3 sm:flex-row"><Input id="trackman-url" type="url" value={url} onChange={e => { setUrl(e.target.value); setLinkStatus(''); }} placeholder="https://portal.trackmangolf.com/…" className="h-12 min-w-0 flex-1" /><Button variant="outline" className="h-12" disabled={!url.trim() || busy} onClick={() => { setLinkStatus(trackmanLinkMessage(url)); setManual(true); }}><Link2 />Fetch TrackMan data</Button></div>
-        <QuestionInfo field="trackman" label="TrackMan session link" />
-        <p className="mt-3 text-xs text-muted-foreground">Link import is not connected yet. Manual numbers are available below.</p>
-        {linkStatus && <p role="status" className="mt-3 border-l-2 border-primary pl-3 text-sm">{linkStatus}</p>}
+        <p className="mt-3 text-muted-foreground">Have a session report? Type in your normal 7-iron numbers.</p>
         <Button variant="ghost" className="mt-5 w-full justify-between px-0" aria-expanded={manual} onClick={() => setManual(!manual)}>Enter data manually <ChevronDown className={manual ? 'rotate-180' : ''} /></Button>
         {manual && <div data-scroll-reveal className="mt-4">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><label htmlFor="data-club" className="mb-2 block text-sm">Club used</label><select id="data-club" value={form.club} onChange={e => setForm(v => ({ ...v, club: e.target.value === '7-iron' ? '7-iron' : 'other' }))} className="h-10 border border-input bg-background px-3"><option value="7-iron">7-iron</option><option value="other">Another club</option></select><QuestionInfo field="club" label="Club used" /></div><div><p className="mb-2 text-sm">Carry unit</p><div className="flex gap-1">{(['yd', 'm'] as const).map(unit => <Button key={unit} variant={form.unit === unit ? 'default' : 'outline'} aria-pressed={form.unit === unit} onClick={() => changeUnit(unit)}>{unit === 'yd' ? 'Yards' : 'Metres'}</Button>)}</div></div></div>
           {form.club === 'other' && <p className="mb-4 text-sm text-primary">We’ll keep these separate from your 7-iron profile.</p>}
           <div className="grid gap-5 sm:grid-cols-2">{metrics.map(metric => <div key={metric.key}><label htmlFor={metric.key} className="mb-2 flex justify-between text-sm"><span>{metric.label}</span><span className="text-muted-foreground">{metric.key === 'carry' ? form.unit : metric.unit}</span></label><Input id={metric.key} type="number" inputMode="decimal" min={metric.key === 'launch' ? 0 : 0.01} max={metric.key === 'carry' ? carryLimit(form.unit) : metric.max} step="any" value={values[metric.key] ?? ''} onChange={e => setValues(v => ({ ...v, [metric.key]: e.target.value }))} placeholder="Optional" className="h-12" /><QuestionInfo field={metric.key} label={metric.label} /></div>)}</div>
-          <p className="mt-4 text-xs text-muted-foreground">Self-reported from your session · leave anything you don’t know blank.</p>
+          <p className="mt-4 text-xs text-muted-foreground">Self-reported from your session · leave anything you don’t know blank. Clubhead speed and carry feed your fit; launch and spin are kept with your notes but don’t change the spec yet.</p>
           <Button variant="link" className="mt-2 px-0" onClick={() => setValues({})}>Clear measurements</Button>
         </div>}
         </div>
       </section>
       <section data-scroll-reveal className="border-b border-border py-7"><div className="flex items-center justify-between gap-4"><h2 className="flex items-center gap-3 font-display text-2xl font-bold uppercase italic"><SlidersHorizontal className="size-5 text-primary" />Face impact <span className="font-sans text-xs font-normal not-italic text-muted-foreground">Optional</span></h2><Switch aria-label="Enable face impact" checked={form.impactEnabled} onCheckedChange={impactEnabled => setForm(v => ({ ...v, impactEnabled, impact: impactEnabled ? v.impact : null }))} /></div><p className="mt-3 text-muted-foreground">No need to overdo it. If you know your usual strike location, add it here.</p>
         <QuestionInfo field="impact" label="Face impact" />
-        {form.impactEnabled && <div className="mt-6"><div className="grid grid-cols-3 gap-3">{(['heel', 'center', 'toe'] as const).map(impact => <Button key={impact} className="h-14 font-display text-xl uppercase" variant={form.impact === impact ? 'default' : 'outline'} aria-pressed={form.impact === impact} onClick={() => setForm(v => ({ ...v, impact: v.impact === impact ? null : impact }))}>{impact}</Button>)}</div><p className="mt-4 text-sm text-muted-foreground">Strike location adds context. It doesn’t tell us your lie angle on its own, so we won’t make an automatic upright or flat adjustment.</p></div>}
+        {form.impactEnabled && <div className="mt-6"><div className="grid grid-cols-3 gap-3">{(['heel', 'center', 'toe'] as const).map(impact => <Button key={impact} className="h-14 font-display text-xl uppercase" variant={form.impact === impact ? 'default' : 'outline'} aria-pressed={form.impact === impact} onClick={() => setForm(v => ({ ...v, impact: v.impact === impact ? null : impact }))}>{impact}</Button>)}</div><p className="mt-4 text-sm text-muted-foreground">Kept with your notes. Strike location alone doesn’t tell us your lie angle, so it doesn’t change the spec.</p></div>}
       </section>
       </fieldset>
       <p className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="size-4" />Saved privately with your fitting. Your original profile stays intact.</p>
