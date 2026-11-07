@@ -10,20 +10,41 @@ const FPS_OPTIONS = [240, 120, 60, 30];
 
 type Phase = "idle" | "loading-model" | "ready" | "running" | "done" | "error";
 
+// Last run (partial ones too) survives a tab crash: shown on reload.
+const SAVE_KEY = "takomo.clubBench.last";
+type Report = Record<string, unknown>;
+function save(r: Report) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(r));
+  } catch {
+    /* private mode / quota: live view still works */
+  }
+}
+function loadSaved(): Report | null {
+  try {
+    const v = localStorage.getItem(SAVE_KEY);
+    return v ? (JSON.parse(v) as Report) : null;
+  } catch {
+    return null;
+  }
+}
+
 const fmt = (v: number, d = 0) => (Number.isFinite(v) ? v.toFixed(d) : "–");
 
 export function ClubBench() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [det, setDet] = useState<ClubDetector | null>(null);
   const [f16, setF16] = useState<boolean | null>(null);
-  const [fps, setFps] = useState(240);
-  const [maxSeconds, setMaxSeconds] = useState(3);
+  const [fps, setFps] = useState(30); // start small, then scale up
+  const [maxSeconds, setMaxSeconds] = useState(1);
   const [duration, setDuration] = useState(0);
   const [progress, setProgress] = useState<[number, number]>([0, 0]);
   const [summary, setSummary] = useState<BenchSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [stopped, setStopped] = useState<string | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
+  const [saved] = useState<Report | null>(loadSaved);
   const videoRef = useRef<HTMLVideoElement>(null);
   const workRef = useRef<HTMLCanvasElement>(null);
   const viewRef = useRef<HTMLCanvasElement>(null);
@@ -54,6 +75,8 @@ export function ClubBench() {
     if (!file || !video) return;
     abortRef.current?.abort();
     setSummary(null);
+    setReport(null);
+    setStopped(null);
     setDuration(0);
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = URL.createObjectURL(file);
@@ -96,35 +119,43 @@ export function ClubBench() {
     setError(null);
     setStopped(null);
     setCopied(false);
+    setReport(null);
+    const base = {
+      backend: det.backend,
+      shaderF16: f16,
+      modelLoadMs: Math.round(det.loadMs),
+      sampleFps: fps,
+      video: `${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(2)} s`,
+      userAgent: navigator.userAgent,
+    };
     try {
       const r = await runClubBenchmark(det, video, work, {
         sampleFps: fps,
         maxSeconds,
         signal: ctrl.signal,
+        onStats: (s) => {
+          setSummary(s);
+          save({ ...base, partial: "in progress (page may have crashed)", ...s });
+        },
         onFrame: (i, n, box) => {
           setProgress([i + 1, n]);
           if (i % 4 === 0) drawView(box); // keep the preview cheap
         },
       });
+      const final = { ...base, partial: r.stopped, ...r.summary };
+      save(final);
       setSummary(r.summary);
       setStopped(r.stopped);
+      setReport(final);
       setPhase("done");
     } catch (e) {
+      save({ ...base, partial: `error: ${(e as Error).message}` });
       setError((e as Error).message);
       setPhase("error");
     }
   }
 
   const frames = Math.floor(Math.min(duration, maxSeconds) * fps);
-  const report = summary && {
-    backend: det?.backend,
-    shaderF16: f16,
-    modelLoadMs: Math.round(det?.loadMs ?? 0),
-    sampleFps: fps,
-    partial: stopped,
-    ...summary,
-    userAgent: navigator.userAgent,
-  };
 
   return (
     <main className="mx-auto max-w-xl space-y-4 p-4">
@@ -141,7 +172,17 @@ export function ClubBench() {
         <dt>Model load</dt>
         <dd>{det ? `${fmt(det.loadMs)} ms` : "–"}</dd>
       </dl>
-      {det?.error && <p className="text-sm text-destructive">WebGPU failed, using CPU: {det.error}</p>}
+      {det?.error && (
+        <p className="text-sm text-destructive">
+          WebGPU failed, using CPU (about 2–3 s per frame, keep runs short): {det.error}
+        </p>
+      )}
+      {saved && phase !== "running" && phase !== "done" && (
+        <details className="text-sm">
+          <summary>Last run: {String(saved.partial ?? "complete")}</summary>
+          <pre className="whitespace-pre-wrap break-all">{JSON.stringify(saved, null, 2)}</pre>
+        </details>
+      )}
 
       <label className="block text-sm font-medium">
         Swing clip (slow-mo is fine)
@@ -214,8 +255,9 @@ export function ClubBench() {
       <canvas ref={workRef} className="hidden" />
       <canvas ref={viewRef} className="w-full max-w-xs" />
 
-      {summary && report && (
+      {summary && (
         <section className="space-y-2">
+          {phase === "running" && <p className="text-sm">Live, updates every 10 frames</p>}
           {stopped && <p className="text-sm text-destructive">Partial run ({stopped}).</p>}
           <dl className="grid grid-cols-2 gap-x-4 text-sm">
             <dt>Frames</dt>
@@ -241,18 +283,20 @@ export function ClubBench() {
             <dt>Shaft detected</dt>
             <dd>{fmt(summary.detectedShare * 100)} %</dd>
           </dl>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              navigator.clipboard
-                .writeText(JSON.stringify(report, null, 2))
-                .then(() => setCopied(true))
-                .catch(() => setCopied(false))
-            }
-          >
-            {copied ? "Copied" : "Copy results"}
-          </Button>
+          {report && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigator.clipboard
+                  .writeText(JSON.stringify(report, null, 2))
+                  .then(() => setCopied(true))
+                  .catch(() => setCopied(false))
+              }
+            >
+              {copied ? "Copied" : "Copy results"}
+            </Button>
+          )}
         </section>
       )}
     </main>

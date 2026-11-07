@@ -40,7 +40,7 @@ describe("toChw", () => {
   it("splits RGBA into planar RGB 0..1", () => {
     const rgba = new Uint8ClampedArray([255, 0, 51, 255, 0, 255, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255]);
     const want = [1, 0, 0, 1, 0, 1, 0, 1, 0.2, 0, 0, 1];
-    toChw(rgba, 2).forEach((v, i) => expect(v).toBeCloseTo(want[i]));
+    toChw(rgba, 2, new Float32Array(12)).forEach((v, i) => expect(v).toBeCloseTo(want[i]));
   });
 });
 
