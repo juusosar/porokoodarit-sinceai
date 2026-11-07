@@ -114,7 +114,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const busy = status === "submitted" || status === "streaming";
   const pacing = useChatPacing(messages, busy, initial?.messages);
   const [overrides, setOverrides] = useState<Profile>(initial?.overrides ?? {});
-  const [resolved, setResolved] = useState<Set<string>>(new Set(initial?.resolved));
+  const [resolved] = useState<Set<string>>(new Set(initial?.resolved)); // kept for saved-chat compatibility
   const save = saveFitting;
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
   const [saving, setSaving] = useState(false);
@@ -122,30 +122,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const [confirmed, setConfirmed] = useState(initial?.confirmed ?? false);
   useSpeakLine(line);
 
-  // Latest unresolved recheck request from Grant
-  const recheck = useMemo(() => {
-    const last = messages[messages.length - 1];
-    if (busy || last?.role !== "assistant") return undefined;
-    for (const part of last.parts) {
-      if (part.type !== "tool-ask_recheck" || !part.input.field || resolved.has(part.toolCallId)) continue;
-      const q = CARDS.flatMap((c) => c.questions).find((x) => x.key === part.input?.field);
-      if (q) return { id: part.toolCallId, q, reason: part.input.reason };
-    }
-    return undefined;
-  }, [messages, busy, resolved]);
-
-  const card = pacing.questionsReady && !recheck ? CARDS[cardIdx] : undefined;
-
-  const submitRecheck = (a: Record<string, Answer> | null) => {
-    if (!recheck) return;
-    setResolved((s) => new Set(s).add(recheck.id));
-    if (a) {
-      setOverrides((p) => ({ ...p, ...a }));
-      sendMessage({ text: `[Recheck: ${recheck.q.label}] ${a[recheck.q.key]?.value}`, profile: { ...profileRef.current, ...a } });
-    } else {
-      sendMessage({ text: `[Recheck: ${recheck.q.label}] Keeping my original answer` });
-    }
-  };
+  const card = pacing.questionsReady ? CARDS[cardIdx] : undefined;
 
   const submitCard = (a: Record<string, Answer>) => {
     if (!card) return;
@@ -231,7 +208,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
             const text = pacing.visibleText(m);
             const activeReply = m.role === "assistant" && m.id === messages.at(-1)?.id;
             if (!text && !(activeReply && pacing.presenting)) return null;
-            const cardMsg = text.match(/^\[(?:Card \d+|Recheck): ([^\]]+)\] (.*)$/);
+            const cardMsg = text.match(/^\[(?:Card \d+|Recheck): ([^\]]+)\] (.*)$/); // Recheck: old saved chats
             if (m.role === "user" && cardMsg)
               return (
                 <div key={m.id} className="flex justify-end">
@@ -258,18 +235,8 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
               <ThinkingDots />
             </div>
           )}
-          {pacing.questionsReady && recheck && (
-            <QuickCard
-              key={recheck.id}
-              card={{ id: 0, title: `Double-check: ${recheck.q.label}`, questions: [recheck.q] }}
-              note={recheck.reason}
-              initial={cardAnswers[recheck.q.key]?.value}
-              onSubmit={submitRecheck}
-              onKeep={() => submitRecheck(null)}
-            />
-          )}
           {card && <QuickCard key={card.id} card={card} onSubmit={submitCard} />}
-          {pacing.questionsReady && !recheck && cardIdx === CARDS.length && (
+          {pacing.questionsReady && cardIdx === CARDS.length && (
             <BugsCard
               score={profile['score']?.value ?? ''}
               carryYd={/\d/.test(profile['carry']?.value ?? '') ? parseFloat(profile['carry']?.value ?? '') : null}
@@ -280,7 +247,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
               }}
             />
           )}
-          {pacing.questionsReady && !recheck && cardIdx > CARDS.length && (() => {
+          {pacing.questionsReady && cardIdx > CARDS.length && (() => {
             const last = messages[messages.length - 1];
             const text = last?.role === "assistant" ? last.parts.map((p) => (p.type === "text" ? p.text : "")).join("") : "";
             if (!/get that right|did i get|sound right|is that right/i.test(text) && !last?.id.startsWith(LOCAL_PREFIX)) return null;
