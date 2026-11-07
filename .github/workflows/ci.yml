@@ -66,3 +66,22 @@ jobs:
       - name: container logs
         if: failure()
         run: docker logs api; docker logs web
+
+  history:
+    # Rebase-merge keeps every PR commit on dev, so PR commits must be clean.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: no merge commits, no leftover fixup!/squash!
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          merges=$(git log --merges --oneline "$BASE..$HEAD")
+          fixups=$(git log --format='%h %s' "$BASE..$HEAD" | grep -E '^[0-9a-f]+ (fixup|squash|amend)! ' || true)
+          if [ -n "$merges" ]; then echo "::error::Merge commits in PR, rebase onto base instead:"; echo "$merges"; fi
+          if [ -n "$fixups" ]; then echo "::error::Run 'git rebase -i --autosquash origin/<base>' first:"; echo "$fixups"; fi
+          [ -z "$merges$fixups" ]
