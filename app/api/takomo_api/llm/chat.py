@@ -100,6 +100,7 @@ class ChatReply(BaseModel):
     profile: dict[str, FieldValue] = Field(default_factory=dict)
     recheck: Recheck | None = None
     fallback_reason: str | None = None
+    audio_token: str | None = None  # set by the API when server voice is on
 
 
 class _LLMOut(BaseModel):

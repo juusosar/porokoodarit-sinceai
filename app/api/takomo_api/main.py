@@ -86,7 +86,10 @@ def create_app() -> FastAPI:
         """One profiling chat turn with the host. Never fails: falls back to scripted replies."""
         if not chat_limiter.allow(client_key(request)):
             raise HTTPException(429, "too many chat calls, slow down")
-        return chat(req)
+        out = chat(req)
+        if voice_on:
+            out.audio_token = voice.audio_token(out.reply)
+        return out
 
     class RoleSetting(BaseModel):
         provider: str
