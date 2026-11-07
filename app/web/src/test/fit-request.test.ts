@@ -33,6 +33,13 @@ describe('chat profile -> engine request', () => {
     expect(r.measurements?.speed_7i_mph).toMatchObject({ value: 82, source: 'measured', method: 'launch_monitor' });
     expect(r.measurements?.backswing_s).toMatchObject({ value: 0.9, source: 'measured', method: 'video_pose' });
   });
+  it('sends optional club speed and own loft only when given (POR-34)', () => {
+    const r = toFitRequest('profile', { speed: sure('82 mph'), loft: sure('28.5°') }, null, null);
+    expect(r.answers).toMatchObject({ speed_7i_mph: 82, own_7i_loft_deg: 28.5 });
+    const n = toFitRequest('profile', { speed: { value: 'Not sure', status: 'guess' }, loft: { value: 'Not sure', status: 'guess' } }, null, null);
+    expect(n.answers?.speed_7i_mph).toBeUndefined();
+    expect(n.answers?.own_7i_loft_deg).toBeUndefined();
+  });
   it('ignores launch monitor numbers from another club', () => {
     const r = toFitRequest('result', {}, { ...emptyEnrichment, club: 'other', speed: 95 }, null);
     expect(r.measurements).toEqual({});

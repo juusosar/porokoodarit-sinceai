@@ -12,6 +12,7 @@ import { getFittingToken } from '@/lib/fitting-session';
 import { readSwing } from '@/lib/swing-store';
 import { renderReason } from '@/lib/reasons';
 import { confidenceView } from '@/lib/parts';
+import { clearAllLocal } from '@/lib/local-store';
 import { HeadSelectionOverlay } from '@/components/HeadSelectionOverlay';
 import { FittingData } from '@/components/FittingData';
 import { ClubReveal } from '@/components/ClubReveal';
@@ -70,7 +71,16 @@ function Clubs() {
       <section data-scroll-reveal className="mt-16 border-t border-border pt-7"><p className="text-xs uppercase tracking-widest text-muted-foreground">02 · A different trade-off</p><div className="mt-5 grid items-center gap-5 sm:grid-cols-[160px_1fr]"><ClubReveal image={secondary.image} name={secondary.name} compact /><div><h2 className="font-display text-3xl font-bold uppercase italic">{secondary.name} irons</h2><p className="mt-2 text-xs uppercase text-muted-foreground">{secondary.set}</p><p className="mt-3 max-w-xl text-sm text-muted-foreground">{secondary.tradeoff}</p><Button variant="outline" disabled={saving} className="mt-4 h-auto whitespace-normal" onClick={() => void choose(secondaryId)}>Select {secondary.name} with my specs <ArrowRight /></Button></div></div></section>
       <FittingData state={state} explanation={fit.explanation} profile={fitting.snapshot?.profile ?? {}} extras={extras.data} swing={swing} />
       <p className="mt-8 border-l-2 border-primary pl-4 text-xs leading-relaxed text-muted-foreground">Check the final configuration and return conditions on Takomo before purchasing. Custom builds are not returnable; eligible stock sets have 30-day returns.</p>
+      <DeleteMyData />
     </>}
     <Button asChild variant="link" className="mt-8 px-0 text-muted-foreground"><Link to="/enrichment"><ArrowLeft />Review extra data</Link></Button>
   </section>{overlay && selection && <HeadSelectionOverlay selection={selection} onClose={() => setOverlay(false)} />}</main>;
+}
+
+/** Privacy: one tap removes every Takomo record in this browser (POR-35). Two steps, since it can't be undone. */
+function DeleteMyData() {
+  const [ask, setAsk] = useState(false);
+  return <div className="mt-6 text-xs text-muted-foreground">{ask
+    ? <p className="flex flex-wrap items-center gap-2">Delete your answers, swing timing and saved fit from this device?<Button variant="destructive" size="sm" onClick={() => { clearAllLocal(); window.location.assign('/'); }}>Delete</Button><Button variant="ghost" size="sm" onClick={() => setAsk(false)}>Cancel</Button></p>
+    : <Button variant="link" className="h-auto px-0 text-xs text-muted-foreground" onClick={() => setAsk(true)}>Delete my data from this device</Button>}</div>;
 }
