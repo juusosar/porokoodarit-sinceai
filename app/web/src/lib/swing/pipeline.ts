@@ -42,6 +42,8 @@ export type SwingPipelineResult = {
   clipFps: number | null;
   /** Event times in seconds (top + impact refined at clip frame rate when pass 2 had enough frames). */
   events: Record<SwingEvent, number>;
+  slowMo: number;
+  /** In real swing seconds (media time / slowMo). */
   tempo: Tempo | null;
   clubPathDeg: number | null;
   club: { t: number; p: ClubPoint }[];
@@ -57,6 +59,11 @@ export type PipelineOptions = {
   coarseFps?: number;
   /** "downswing" (default) or "all": run the club detector on every frame of the clip (worst case). */
   clubWindow?: "downswing" | "all";
+  /**
+   * Playback slowdown of the file (iPhone slow-mo saved as a 30 fps video plays 4-8x slower).
+   * Phase windows and tempo use real swing time = media time / slowMo. Event times stay in media seconds.
+   */
+  slowMo?: number;
   onProgress?: (stage: 1 | 2, done: number, total: number) => void;
   signal?: AbortSignal;
 };
@@ -103,7 +110,7 @@ export function warmUpPose(landmarker: PoseLandmarker): number {
 }
 
 export async function runSwingPipeline(file: File, opts: PipelineOptions): Promise<SwingPipelineResult> {
-  const { detector, landmarker, coarseFps = 15, clubWindow = "downswing", onProgress, signal } = opts;
+  const { detector, landmarker, coarseFps = 15, clubWindow = "downswing", slowMo = 1, onProgress, signal } = opts;
   const t0 = performance.now();
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
   try {
@@ -177,7 +184,7 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
       p1.poseMedianMs = median(poseMs1);
       p1.ms = performance.now() - s;
     }
-    const coarse = detectPhases({ x: hx, y: hy }, coarseFps);
+    const coarse = detectPhases({ x: hx, y: hy }, coarseFps * slowMo);
     const events = Object.fromEntries(EVENTS.map((e) => [e, ts1[coarse.frames[e]]])) as Record<SwingEvent, number>;
 
     // ---- pass 2: pose + club at clip frame rate around the downswing
@@ -261,8 +268,12 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
       durationS,
       clipFps,
       events,
-      tempo: tempo(events.Address, events.Top, events.Impact),
-      clubPathDeg: impact2 >= 0 ? clubPathDeg(wx2, impact2, fps2) : clubPathDeg(hx, coarse.frames.Impact, coarseFps),
+      slowMo,
+      tempo: tempo(events.Address / slowMo, events.Top / slowMo, events.Impact / slowMo),
+      clubPathDeg:
+        impact2 >= 0
+          ? clubPathDeg(wx2, impact2, fps2 * slowMo)
+          : clubPathDeg(hx, coarse.frames.Impact, coarseFps * slowMo),
       club: club.map((p, i) => ({ t: t2[i], p })),
       clubRawShare: raw2.filter(Boolean).length / n2,
       clubShare: club.filter((p) => p.detected).length / n2,
