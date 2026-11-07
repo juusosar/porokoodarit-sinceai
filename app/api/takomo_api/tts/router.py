@@ -13,7 +13,7 @@ from fastapi.responses import Response, StreamingResponse
 from ..config import get_settings
 from ..ratelimit import RateLimiter, client_key
 from .base import TTSError
-from .service import speech
+from .service import BudgetSpent, speech
 
 log = logging.getLogger(__name__)
 MAX_CHARS = 600  # longest host line (final walkthrough) is well under this
@@ -37,7 +37,7 @@ def build_router() -> APIRouter:
     def speak(
         request: Request,
         text: str = Query(min_length=1, max_length=MAX_CHARS),
-        token: str = Query(min_length=8, max_length=64),
+        token: str = Query(pattern="^[0-9a-f]{32}$"),
     ):
         """Audio for a host line. GET so the browser can stream it straight into an <audio> element."""
         sp = speech()
@@ -50,11 +50,11 @@ def build_router() -> APIRouter:
             return Response(hit, media_type=sp.provider.media_type, headers=headers | {"X-Cache": "hit"})
         if not limiter.allow(client_key(request)):
             raise HTTPException(429, "too many voice calls, slow down")
-        if not sp.budget.take(len(text)):
-            log.warning("tts daily character budget spent")
-            raise HTTPException(503, "voice budget spent for today")
         try:
             body = sp.stream(text)
+        except BudgetSpent as e:
+            log.warning("tts daily character budget spent")
+            raise HTTPException(503, "voice budget spent for today") from e
         except TTSError as e:
             log.warning("tts failed provider=%s: %s", sp.provider.name, str(e)[:300])
             raise HTTPException(502, "voice provider failed") from e

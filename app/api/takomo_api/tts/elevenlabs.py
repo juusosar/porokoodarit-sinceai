@@ -52,8 +52,12 @@ class ElevenLabsProvider:
         except httpx.HTTPError as e:
             raise TTSError(f"request failed: {type(e).__name__}") from e
         if resp.status_code != 200:
-            detail = resp.read()[:300].decode("utf-8", "replace")
-            resp.close()
+            try:
+                detail = resp.read()[:300].decode("utf-8", "replace")
+            except httpx.HTTPError:
+                detail = "(unreadable body)"
+            finally:
+                resp.close()
             raise TTSError(f"http {resp.status_code}: {detail}")
         return self._chunks(resp)
 
@@ -61,5 +65,7 @@ class ElevenLabsProvider:
     def _chunks(resp: httpx.Response) -> Iterator[bytes]:
         try:
             yield from resp.iter_bytes()
+        except httpx.HTTPError as e:  # timeout / dropped connection while streaming
+            raise TTSError(f"stream failed: {type(e).__name__}") from e
         finally:
             resp.close()

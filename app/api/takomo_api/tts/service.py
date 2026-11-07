@@ -23,6 +23,10 @@ from .elevenlabs import ElevenLabsProvider
 log = logging.getLogger(__name__)
 
 
+class BudgetSpent(TTSError):
+    pass
+
+
 class AudioCache:
     """LRU of finished clips, bounded by total bytes."""
 
@@ -72,6 +76,11 @@ class DailyBudget:
             self._used += n
             return True
 
+    def refund(self, n: int) -> None:
+        """Give back characters of a clip that failed or was cut off (no complete audio delivered)."""
+        with self._lock:
+            self._used = max(0, self._used - n)
+
 
 class Speech:
     def __init__(self, provider: TTSProvider | None, signing_key: bytes, cache_bytes: int, daily_chars: int):
@@ -90,7 +99,7 @@ class Speech:
 
     def verify(self, text: str, token: str) -> bool:
         expected = self.sign(text)
-        return expected is not None and hmac.compare_digest(expected, token)
+        return expected is not None and hmac.compare_digest(expected.encode(), token.encode())
 
     def _cache_key(self, text: str) -> str:
         p = self.provider
@@ -101,23 +110,49 @@ class Speech:
         return self.cache.get(self._cache_key(text))
 
     def stream(self, text: str) -> Iterator[bytes]:
-        """Provider stream that fills the cache once the clip finished. Raises TTSError before audio starts."""
+        """Provider stream that fills the cache once the clip finished. Raises TTSError before audio starts.
+
+        Spends len(text) from the daily budget; refunds it when no complete clip was delivered.
+        """
         p = self.provider
         assert p is not None
         key = self._cache_key(text)
-        chunks = p.stream(text)
-        first = next(chunks, b"")  # surface errors / empty audio before the HTTP response starts
+        n = len(text)
+        if not self.budget.take(n):
+            raise BudgetSpent()
+        chunks: Iterator[bytes] | None = None
+        try:
+            chunks = p.stream(text)
+            first = next(chunks, b"")  # surface errors / empty audio before the HTTP response starts
+            if not first:
+                raise TTSError("empty audio")
+        except Exception as e:
+            self.budget.refund(n)
+            if chunks is not None and hasattr(chunks, "close"):
+                chunks.close()
+            if isinstance(e, TTSError):
+                raise
+            raise TTSError(type(e).__name__) from e
 
         def gen() -> Iterator[bytes]:
             buf = [first]
-            yield first
-            for c in chunks:
-                buf.append(c)
-                yield c
-            self.cache.put(key, b"".join(buf))  # only complete clips; an aborted stream is not cached
+            done = False
+            try:
+                yield first
+                for c in chunks:
+                    buf.append(c)
+                    yield c
+                done = True
+            except Exception as e:  # headers already sent: end the clip quietly, client falls back
+                log.warning("tts stream cut off provider=%s: %s", p.name, str(e)[:300])
+            finally:
+                if done:
+                    self.cache.put(key, b"".join(buf))  # only complete clips are cached
+                else:
+                    self.budget.refund(n)
+                    if hasattr(chunks, "close"):
+                        chunks.close()
 
-        if not first:
-            raise TTSError("empty audio")
         return gen()
 
 
