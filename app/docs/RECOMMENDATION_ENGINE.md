@@ -48,7 +48,7 @@ All sources go into one inverse-variance estimate. The typical weights, stronges
 ### Head
 
 - Unchanged rules: `score_heads`, i.e. skill + speed + priorities + the over-92 cap.
-- The confidence integrates over speed and score uncertainty (P(top head)), so the score prior also firms up the head.
+- The confidence integrates over speed and score uncertainty (P(top head)). The head uses a speed estimate *without* the score prior, so the score answer counts once.
 - The miss → offset rule from the plan was **not added**. The chat already turns misses ("What bugs you" card) into the
   `wants` priorities, so an extra rule would double count.
 
@@ -61,8 +61,12 @@ All sources go into one inverse-variance estimate. The typical weights, stronges
   - Landing angle + 0.5° + 1.14 × (31° − own loft). SD 1.2° with a known loft, about 2.5° without.
   - With no landing angle, it is estimated from launch, spin and speed (lab fit, SD 1.8°).
   - The class boundaries come from the lab simulator: steeper than 45° = low flight needed, shallower than 35° = high.
-- **Flight and tempo are weighed, not overwritten.** The golfer's answer is a prior: right 70% of the time, otherwise one
-  step off. The measurement is a likelihood. The posterior picks the class.
+- **Flight and tempo are weighed, not overwritten.** The golfer's answer is a prior: P(answer | true class) is right 70%
+  of the time, mostly one step off otherwise (5% two steps), times the population mix. The measurement is a
+  likelihood. The posterior picks the class.
+  - When the launch monitor and the answer disagree and the answer wins, the reason says so
+    (`FLIGHT_LAUNCH_VS_ANSWER`). An unclear video with no tempo answer says "typical tempo assumed"
+    (`TEMPO_VIDEO_UNCLEAR_TYPICAL`).
   - A clear video or TrackMan reading wins over a wrong answer.
   - A video timing that sits on a class edge with a big SD cannot overrule a clear answer. The engine then says
     "video timing was unclear" (`TEMPO_VIDEO_UNCLEAR`).
@@ -82,7 +86,7 @@ All sources go into one inverse-variance estimate. The typical weights, stronges
 |---|---|---|
 | 1 | Strike / toe-up shots (`lie_need_deg`) | — |
 | 2 | **Ball-line test:** lie need = −0.65 × mean tilt + 0.4°, model SD 0.5° | Combined with the chart, so 1 shot moves it less than 5 |
-| 3 | Static chart from height + wrist-to-floor | ±1° personal offset |
+| 3 | Static chart from height + wrist-to-floor | ±1° personal offset. No extra population prior on top, so with no shots the lie is exactly Takomo's chart, and a ball-line test that agrees with the chart keeps the value. |
 
 - **Sign:** tilt > 0 means the mark leans toward the toe. The club was toe-up at impact, i.e. too upright, so the golfer
   needs flatter. This follows the lab's `camera/ball_line.py` and DATA_DICTIONARY.
@@ -126,8 +130,8 @@ All sources go into one inverse-variance estimate. The typical weights, stronges
   - Up to 3 steps are returned, each needing a gain ≥ 0.05. The whole run takes about 1.5 ms.
   - Shown as **"Want a surer fit?"** on the results page and as "Next: …" on the live fit card.
 - **Reason codes** are new codes only, no renames:
-  - `SPEED_FROM_SCORE`, `FLIGHT_FROM_LAUNCH`, `TEMPO_FROM_VIDEO`, `TEMPO_VIDEO_UNCLEAR`, `LIE_FROM_BALL_LINE`,
-    `STOCK_CLOSE_CALL`
+  - `SPEED_FROM_SCORE`, `FLIGHT_FROM_LAUNCH`, `FLIGHT_LAUNCH_VS_ANSWER`, `TEMPO_FROM_VIDEO`, `TEMPO_VIDEO_UNCLEAR`,
+    `TEMPO_VIDEO_UNCLEAR_TYPICAL`, `LIE_FROM_BALL_LINE`, `STOCK_CLOSE_CALL`
   - `NEXT_LAUNCH_MONITOR`, `NEXT_BALL_LINE`, `NEXT_SWING_VIDEO`, `NEXT_GLOVE`, `NEXT_HEIGHT`, `NEXT_CARRY`
   - The LLM still gets only labels, confidence, reason codes and close calls. `inputs` is not sent to it, so the mph
     guard is unaffected.
@@ -138,21 +142,21 @@ Dev split, 3000 golfers, no own loft. Full tables are in `docs/EVAL.md`.
 
 | Run | Before | After | Lab reference |
 |---|---|---|---|
-| Answers only (E1) | 78.06 | **78.73** | today's rules 77.10 |
-| Answers + evidence (E2) | 84.75 | **85.24** | rules + measurements 83.58 |
-| E2 full spec exact | 27.6% | **30.2%** | 25.3% |
-| Shipped web inputs (E-UI, answers + video tempo) | 77.81 | **78.33** | — |
-| E-UI + launch monitor speed | 79.66 | **79.97** | — |
+| Answers only (E1) | 78.06 | **78.77** | today's rules 77.10 |
+| Answers + evidence (E2) | 84.75 | **85.35** | rules + measurements 83.58 |
+| E2 full spec exact | 27.6% | **30.4%** | 25.3% |
+| Shipped web inputs (E-UI, answers + video tempo) | 77.81 | **78.37** | — |
+| E-UI + launch monitor speed | 79.66 | **80.01** | — |
 
 Per part on E2:
 
 | Part | Before | After |
 |---|---|---|
-| Shaft model | 71.6 | 75.5 |
+| Shaft model | 71.6 | 75.2 |
 | Flex | 86.5 | 87.1 |
 | Material | 94.5 | 95.5 |
-| Lie | 55.7 | 56.4 |
-| Head | 92.9 | 92.7 |
+| Lie | 55.7 | 56.9 |
+| Head | 92.9 | 92.9 |
 
 - All tuning was done on train only; dev was run once.
 - The lie gain is small overall because only 20% of lab golfers have a ball-line test and about 25% have toe-up data.

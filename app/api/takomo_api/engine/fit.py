@@ -55,6 +55,7 @@ TEMPO_EDGES_S = (1.05, 1.35)  # backswing + downswing: under = quick, over = smo
 FLIGHT_CLASSES = ("low", "mid", "high")
 FLIGHT_PRIOR = {"low": 0.13, "mid": 0.64, "high": 0.23}
 ANSWER_RIGHT_P = 0.7
+TWO_OFF_P = 0.05
 # Weight of each part in the "what to add next" gain (head and shaft matter most to a golfer).
 GAIN_WEIGHT = {SpecPart.head: 2.0, SpecPart.shaft: 2.0, SpecPart.lie: 1.5, SpecPart.length: 1.0, SpecPart.grip: 1.0}
 NEXT_STEP_MIN_GAIN = 0.05
@@ -200,15 +201,21 @@ def _offline_yd(loft_deg: float, lie_err_deg: float, speed_mph: float) -> float:
 
 
 def _answer_prior(classes: tuple[str, ...], asked: str | None, population: dict[str, float]) -> dict[str, float]:
-    """P(true class | answer). Wrong answers are one step off (lab error model)."""
+    """P(true class | answer) = P(answer | true) * P(true), normalised. A golfer answers right ANSWER_RIGHT_P of
+    the time, otherwise mostly one step off (lab error model); two steps off is rare but possible, so a
+    measurement can still win."""
     if asked is None:
         return dict(population)
-    i = classes.index(asked)
-    near = [c for j, c in enumerate(classes) if abs(j - i) == 1]
-    out = {c: 0.1 for c in classes}  # two steps off: rare, but a measurement must be able to win
-    out[asked] = ANSWER_RIGHT_P
-    for c in near:
-        out[c] = (1 - ANSWER_RIGHT_P) / len(near)
+    ia = classes.index(asked)
+
+    def p_answer(true: str) -> float:
+        it = classes.index(true)
+        if it == ia:
+            return ANSWER_RIGHT_P
+        nbrs = sum(1 for j in range(len(classes)) if abs(j - it) == 1)
+        return (1 - ANSWER_RIGHT_P - TWO_OFF_P) / nbrs if abs(it - ia) == 1 else TWO_OFF_P
+
+    out = {c: p_answer(c) * population[c] for c in classes}
     t = sum(out.values())
     return {c: v / t for c, v in out.items()}
 
@@ -293,6 +300,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
         )
     tempo_p = _posterior(_answer_prior(TEMPO_CLASSES, a.tempo, TEMPO_PRIOR), tempo_like)
     tempo = max(TEMPO_CLASSES, key=lambda c: tempo_p[c])
+    video_tempo = max(TEMPO_CLASSES, key=lambda c: tempo_like[c]) if tempo_like is not None else None
     if tempo_like is not None:
         src["tempo"] = E.measured
     # flight: answer as prior, launch-monitor landing angle (or launch + spin) as likelihood
@@ -300,6 +308,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
     flight_like = Fu.flight_probs(flight_est) if flight_est is not None else None
     flight_p = _posterior(_answer_prior(FLIGHT_CLASSES, a.flight, FLIGHT_PRIOR), flight_like)
     flight = max(FLIGHT_CLASSES, key=lambda c: flight_p[c])
+    lm_flight = max(FLIGHT_CLASSES, key=lambda c: flight_like[c]) if flight_like is not None else None
     if flight_like is not None:
         src["flight"] = E.measured
     src["score"] = E.asked if a.score_bucket is not None else E.default
@@ -311,6 +320,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
         glove = a.glove or DEFAULTS["glove"]
 
     speed_p = Fu.speed_bucket_probs(fz.speed)
+    head_speed_p = Fu.speed_bucket_probs(fz.speed_head)  # score enters the head once, via score_p
     score_p = _score_probs(a.score_bucket)
     swing_bucket = max(range(1, 6), key=lambda b: speed_p[b - 1])
     score_bucket = max(range(1, 6), key=lambda b: score_p[b - 1])
@@ -333,7 +343,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
     p_top: dict[str, float] = {h: 0.0 for h in C.HEAD_ORDER}
     for sb in range(1, 6):
         for sc in range(1, 6):
-            w = speed_p[sb - 1] * score_p[sc - 1]
+            w = head_speed_p[sb - 1] * score_p[sc - 1]
             if w < 1e-4:
                 continue
             p_top[R.score_heads(replace(base, swing_bucket=sb, score_bucket=sc))[0][0]] += w
@@ -429,10 +439,12 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
         _shaft_launch(sh),
         _shaft_feel(sh),
     ]
-    top_speed = max(fz.speed.items, key=lambda t: t[1])[0]
+    weight = {o.method: w for o, w in fz.speed.items}
+    informative = [(o, w) for o, w in fz.speed.items if o.method != "population_prior"]
+    top_speed = max(informative, key=lambda t: t[1])[0] if informative else None
     if E.measured in fz.speed.sources:
         reasons.append(Reason(code="SPEED_MEASURED", params={"speed_range": SPEED_RANGE[swing_bucket]}))
-    elif top_speed.method == "carry_loft_corrected" and a.carry_7i_yd is not None:
+    elif weight.get("carry_loft_corrected", 0) >= Fu.WEIGHT_TAG_MIN and a.carry_7i_yd is not None:
         used = round(max(a.carry_7i_yd - Fu.CARRY_OVER_REPORT_YD, Fu.MIN_TRUE_CARRY_YD))
         reasons.append(Reason(code="SPEED_FROM_CARRY"))
         reasons.append(Reason(code="CARRY_READ", params={"said": round(a.carry_7i_yd), "used": used}))
@@ -440,17 +452,22 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
             reasons.append(Reason(code="SPEED_FROM_CARRY_LOFT", params={"loft": round(a.own_7i_loft_deg, 1)}))
         else:
             reasons.append(Reason(code="SPEED_FROM_CARRY_TYPICAL_LOFT", params={"loft": round(Fu.REF_LOFT_DEG)}))
-    elif top_speed.method == "launch_monitor_carry":
+    elif weight.get("launch_monitor_carry", 0) >= Fu.WEIGHT_TAG_MIN:
         reasons.append(Reason(code="SPEED_FROM_CARRY"))
-    elif top_speed.method == "score_prior":
+    elif top_speed is not None and top_speed.method == "score_prior":
         reasons.append(Reason(code="SPEED_FROM_SCORE"))
-    if flight_est is not None:
-        reasons.append(Reason(code="FLIGHT_FROM_LAUNCH", params={"flight": flight}))
-    if tempo_like is not None:
-        if max(TEMPO_CLASSES, key=lambda c: tempo_like[c]) == tempo:
-            reasons.append(Reason(code="TEMPO_FROM_VIDEO", params={"tempo": tempo}))
+    if flight_like is not None:
+        if lm_flight == flight:
+            reasons.append(Reason(code="FLIGHT_FROM_LAUNCH", params={"flight": flight}))
         else:
+            reasons.append(Reason(code="FLIGHT_LAUNCH_VS_ANSWER", params={"lm_flight": lm_flight, "flight": flight}))
+    if tempo_like is not None:
+        if video_tempo == tempo:
+            reasons.append(Reason(code="TEMPO_FROM_VIDEO", params={"tempo": tempo}))
+        elif a.tempo is not None:
             reasons.append(Reason(code="TEMPO_VIDEO_UNCLEAR", params={"tempo": tempo}))
+        else:
+            reasons.append(Reason(code="TEMPO_VIDEO_UNCLEAR_TYPICAL", params={"tempo": tempo}))
     cc = None
     neighbours = [b for b in (swing_bucket - 1, swing_bucket + 1) if 1 <= b <= 5]
     nb = max(neighbours, key=lambda b: speed_p[b - 1])
@@ -473,7 +490,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
             _cat_item(
                 "flight",
                 _label(o),
-                f"needs ~{o.value:.0f}° landing → {flight}" + (" (weighed with your answer)" if a.flight else ""),
+                f"needs ~{o.value:.0f}° landing → {lm_flight}",
                 E.measured,
                 o.method,
             )
@@ -485,7 +502,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
             _cat_item(
                 "tempo",
                 "Swing video (on device)",
-                f"{tempo} ({m.backswing_s.value + m.downswing_s.value:.2f} s)",
+                f"{video_tempo} ({m.backswing_s.value + m.downswing_s.value:.2f} s)",
                 src["tempo"],
                 "video_pose",
             )
@@ -534,9 +551,7 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
     )
 
     # ---------------------------------------------------------------- lie
-    lie_est = fz.lie if fz.lie_measured else Fu.Estimate(fz.lie.mean, fz.lie.sd, fz.lie.sources)
-    if not fz.lie_measured:
-        lie_est.mean = R.lie_continuous(base.height_cm, base.wrist_to_floor_cm)
+    lie_est = fz.lie  # no shots: exactly the static chart (fusion uses no extra prior for lie)
     liep = {
         d: lie_est.prob_between(-math.inf if d == -3 else d - 0.5, math.inf if d == 3 else d + 0.5)
         for d in C.load()["lie_options_deg"]
