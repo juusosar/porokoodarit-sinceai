@@ -1,6 +1,7 @@
 import type { FitRequest, FitState } from "@/types/fit-state";
+import { env } from "@/lib/env";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const API_URL = env("VITE_API_URL", "http://localhost:8080");
 
 export type Health = {
   status: string;

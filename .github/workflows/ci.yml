@@ -42,3 +42,27 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  images:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - name: build api image
+        run: docker build -t takomo-api:ci api
+      - name: build web image
+        run: docker build -f web/Dockerfile -t takomo-web:ci .
+      - name: smoke test
+        run: |
+          docker run -d --name api -p 8080:8080 takomo-api:ci
+          docker run -d --name web -p 3000:8080 -e VITE_API_URL=http://localhost:8080 takomo-web:ci
+          for i in $(seq 1 20); do curl -fsS localhost:8080/health && break; sleep 1; done
+          curl -fsS localhost:8080/health
+          curl -fsS localhost:3000/ | grep -q '<div id="root">'
+          curl -fsS localhost:3000/env.js | grep -q 'http://localhost:8080'
+          curl -fsS localhost:3000/some/deep/route | grep -q '<div id="root">'
+      - name: container logs
+        if: failure()
+        run: docker logs api; docker logs web

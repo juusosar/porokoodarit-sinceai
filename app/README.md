@@ -9,6 +9,7 @@ app/
   api/     FastAPI: engine, fusion, LLM proxy
   shared/  fit_state.schema.json (generated) + reason_codes.json
   vision/  Modal GPU YOLO service (M4)
+  deploy/  container build + deploy scripts (any host)
   docs/
 ```
 
@@ -21,6 +22,12 @@ cp .env.example .env && uvicorn takomo_api.main:app --reload --port 8080
 # Web
 cd app/web && npm ci && cp .env.example .env.local && npm run dev   # http://localhost:5173
 ```
+
+### Or with Docker (full stack, one command)
+```bash
+cd app && docker compose up --build   # web http://localhost:3000, API http://localhost:8080
+```
+Deploy + other hosts: [deploy/DEPLOY.md](deploy/DEPLOY.md).
 
 ## Schema changes
 Edit `app/api/takomo_api/schema.py`, then:

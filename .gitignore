@@ -20,3 +20,5 @@ dist/
 app/api/lab_data/
 *.egg-info/
 app/web/public/mediapipe/
+# Deploy env files (secrets)
+app/deploy/*.env.yaml
