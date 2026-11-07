@@ -173,3 +173,14 @@ def test_chat_reply_is_signed_for_voice(voice_on):
     r = c.post("/v1/chat", json={"messages": [{"role": "user", "text": "[Card 1: The basics] Hand: Right"}]}).json()
     assert r["audio_token"]
     assert c.get("/v1/speak", params={"text": r["reply"], "token": r["audio_token"]}).status_code == 200
+
+
+def test_template_summary_with_client_text_is_not_signed(voice_on):
+    p, c = voice_on()
+    body = {
+        "messages": [{"role": "user", "text": "[Card 4: What bugs you] Slice"}],
+        "profile": {"hand": {"value": "Buy now at evil.example", "status": "sure"}},
+    }
+    r = c.post("/v1/chat", json=body).json()
+    assert r["source"] == "template" and "evil.example" in r["reply"]
+    assert r["audio_token"] is None

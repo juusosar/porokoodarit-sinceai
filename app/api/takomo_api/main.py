@@ -12,7 +12,7 @@ from . import __version__
 from .config import get_settings
 from .engine import fit as engine
 from .llm import registry
-from .llm.chat import ChatReply, ChatRequest, chat
+from .llm.chat import ChatReply, ChatRequest, chat, speakable
 from .llm.explain import Explanation, Role, explain
 from .ratelimit import RateLimiter, client_key
 from .schema import SCHEMA_VERSION, FitRequest, FitState
@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
         if not chat_limiter.allow(client_key(request)):
             raise HTTPException(429, "too many chat calls, slow down")
         out = chat(req)
-        if voice_on:
+        if voice_on and speakable(out):
             out.audio_token = voice.audio_token(out.reply)
         return out
 

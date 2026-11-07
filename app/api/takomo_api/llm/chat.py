@@ -164,6 +164,22 @@ def wants_from_bugs(text: str) -> str | None:
     return ", ".join(w.capitalize() if i == 0 else w for i, w in enumerate(out[:3])) or None
 
 
+SCRIPTED = {
+    "fix": "Tell me which part is off and I'll fix it.",
+    "card1": "Nice, basics locked in. Now your game.",
+    "card2": "Got it. Quick measurements next, they matter for length and lie.",
+    "card3": "Solid. Last one: what bugs you about your irons?",
+    "recheck": "Thanks, updated.",
+    "other": "Got it. Use the card below and we'll keep moving.",
+}
+
+
+def speakable(r: ChatReply) -> bool:
+    """Lines the API may sign for the host voice: guarded LLM replies and fixed scripted lines.
+    Never the template summary, which echoes client-sent profile text."""
+    return r.source == "llm" or r.reply in SCRIPTED.values()
+
+
 def _summary(profile: dict[str, FieldValue]) -> str:
     labels = {
         "hand": "hand",
@@ -186,19 +202,19 @@ def template_reply(req: ChatRequest, why: str | None, t0: float) -> ChatReply:
     if last.startswith("[Card 4") and (w := wants_from_bugs(last)):
         profile["wants"] = FieldValue(value=w[:40], status="guess")
     if last.lower().startswith("no, something"):
-        reply = "Tell me which part is off and I'll fix it."
+        reply = SCRIPTED["fix"]
     elif _needs_confirm(req):
         reply = _summary(req.profile | profile)
     elif last.startswith("[Card 1"):
-        reply = "Nice, basics locked in. Now your game."
+        reply = SCRIPTED["card1"]
     elif last.startswith("[Card 2"):
-        reply = "Got it. Quick measurements next, they matter for length and lie."
+        reply = SCRIPTED["card2"]
     elif last.startswith("[Card 3"):
-        reply = "Solid. Last one: what bugs you about your irons?"
+        reply = SCRIPTED["card3"]
     elif last.startswith("[Recheck"):
-        reply = "Thanks, updated."
+        reply = SCRIPTED["recheck"]
     else:
-        reply = "Got it. Use the card below and we'll keep moving."
+        reply = SCRIPTED["other"]
     return ChatReply(
         source="template",
         provider="template",
@@ -257,7 +273,10 @@ def chat(req: ChatRequest) -> ChatReply:
     profile = {k: v for k, v in out.profile.items() if k in PROFILE_FIELDS and v is not None}
     reply = out.reply
     # At most one double-check per chat: once the golfer has redone an answer, trust what they say.
-    recheck = None if any(m.text.startswith("[Recheck") for m in req.messages) else out.recheck
+    recheck = out.recheck
+    if recheck and any(m.role == "user" and m.text.startswith("[Recheck") for m in req.messages):
+        recheck = None
+        reply = SCRIPTED["recheck"]  # the model's line asked the dropped question
     # The UI only shows Yes/No after this exact question: never leave the golfer without buttons.
     if _needs_confirm(req) and not recheck and CONFIRM.lower() not in reply.lower():
         reply = f"{reply.rstrip()} {CONFIRM}"

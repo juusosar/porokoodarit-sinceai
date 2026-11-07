@@ -81,7 +81,9 @@ export function LiveFitCard() {
   }, []);
 
   useEffect(() => {
-    if (hidden) return;
+    // On "/" the intro screen shares the path with the chat: wait for this visit's first save, so a
+    // previous fitting doesn't show before the golfer presses Start or Resume.
+    if (hidden || (path === "/" && version === 0)) return;
     const c = new AbortController();
     const t = setTimeout(() => {
       const inputs = readInputs();
@@ -96,6 +98,7 @@ export function LiveFitCard() {
       if (key === lastKey.current) return; // same inputs, same fit
       postFit({ ...req, previous: prev.current }, c.signal).then(
         (st) => {
+          if (c.signal.aborted) return; // superseded by newer inputs or a route change
           lastKey.current = key;
           prev.current = { ...st, changes: [] };
           setState(st);
@@ -116,7 +119,7 @@ export function LiveFitCard() {
     return () => clearTimeout(t);
   }, [moved]);
 
-  if (hidden || !state) return null;
+  if (hidden || !state || (path === "/" && version === 0)) return null;
   const toggle = () => {
     setCollapsed((c) => {
       try {

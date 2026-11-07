@@ -68,7 +68,8 @@ def test_only_one_recheck_per_chat(fake):
         {"role": "assistant", "text": "Hmm, check that carry."},
         {"role": "user", "text": "[Recheck carry] 175 yd"},
     ]
-    assert CH.chat(CH.ChatRequest(messages=msgs, profile={})).recheck is None
+    r = CH.chat(CH.ChatRequest(messages=msgs, profile={}))
+    assert r.recheck is None and r.reply == CH.SCRIPTED["recheck"]
 
 
 @pytest.mark.parametrize(
