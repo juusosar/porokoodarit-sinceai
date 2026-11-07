@@ -10,6 +10,17 @@ function key(kind: string, token: string) {
   return `${PREFIX}:${kind}:${token}`;
 }
 
+/** Fired on window after every write/remove, so live views (e.g. the live fit card) can re-read. */
+export const LOCAL_EVENT = "takomo:local";
+
+function changed() {
+  try {
+    window.dispatchEvent(new Event(LOCAL_EVENT));
+  } catch {
+    /* no window (tests/SSR) */
+  }
+}
+
 export function readLocal<T>(kind: string, token: string): T | null {
   try {
     const raw = localStorage.getItem(key(kind, token));
@@ -31,11 +42,13 @@ export function writeLocal<T>(kind: string, token: string, value: T): void {
   } catch {
     throw new Error("This browser blocked local storage.");
   }
+  changed();
 }
 
 export function removeLocal(kind: string, token: string): void {
   try {
     localStorage.removeItem(key(kind, token));
+    changed();
   } catch {
     /* ignore */
   }
