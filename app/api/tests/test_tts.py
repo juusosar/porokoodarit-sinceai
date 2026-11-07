@@ -184,3 +184,22 @@ def test_template_summary_with_client_text_is_not_signed(voice_on):
     r = c.post("/v1/chat", json=body).json()
     assert r["source"] == "template" and "evil.example" in r["reply"]
     assert r["audio_token"] is None
+
+
+def test_fixed_host_lines_are_signed_and_speakable(voice_on):
+    from takomo_api.tts.router import host_lines
+
+    p, c = voice_on()
+    tokens = c.get("/v1/voice/lines").json()["tokens"]
+    lines = host_lines()
+    assert set(tokens) == set(lines) and "swing_intro" in lines
+    text = lines["enrichment_intro"]
+    assert text.startswith("No extra numbers?") and "Got a few to share?" in text
+    q = {"text": text, "token": tokens["enrichment_intro"]}
+    assert c.get("/v1/speak", params=q).status_code == 200
+    assert c.get("/v1/speak", params=q).headers["x-cache"] == "hit"
+    assert p.calls == [text]  # second play is free
+
+
+def test_fixed_host_lines_absent_when_voice_off(voice_off):
+    assert voice_off.get("/v1/voice/lines").status_code == 404
