@@ -1,4 +1,9 @@
-# vision (POR-10): opt-in club tracking on Modal GPU
+# vision (POR-10): club tracking model
+
+**Decided 7 Nov: club tracking runs on the device** (`app/web/src/lib/club`, onnxruntime-web + WebGPU). The video never leaves the phone.
+`export_onnx.py` makes `app/web/public/models/swingtrace-yolo11m-fp16.onnx` from `swingtrace-yolo11m.pt`. Benchmark: open `/bench/club` on the phone.
+
+The Modal stub below is kept as an unused server fallback.
 
 `modal_app.py` runs YOLO11m club-head tracking (`swingtrace-yolo11m.pt`) on a T4.
 
