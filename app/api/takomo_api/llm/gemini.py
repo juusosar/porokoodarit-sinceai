@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from .base import LLMError, LLMRequest
@@ -55,6 +56,8 @@ class GeminiProvider:
     def generate_json(self, req: LLMRequest) -> dict[str, Any]:
         from google.genai import types
 
+        thinking = types.ThinkingConfig(thinking_level=req.thinking_level.upper()) if req.thinking_level else None
+        t0 = time.perf_counter()
         try:
             resp = self._get().models.generate_content(
                 model=_VERTEX_ALIASES.get(req.model, req.model) if self._vertex else req.model,
@@ -64,9 +67,11 @@ class GeminiProvider:
                     temperature=req.temperature,
                     response_mime_type="application/json",
                     response_json_schema=req.json_schema,
+                    thinking_config=thinking,
                     http_options=types.HttpOptions(timeout=int(req.timeout_s * 1000)),
                 ),
             )
+            log.info("gemini model=%s %.0f ms", req.model, (time.perf_counter() - t0) * 1000)
             return json.loads(resp.text or "")
         except Exception as e:  # network, quota, safety block, bad JSON
             raise LLMError(f"gemini: {type(e).__name__}: {e}") from e
