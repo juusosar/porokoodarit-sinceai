@@ -11,18 +11,32 @@ from .base import LLMError, LLMRequest
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self, api_key: str | None):
+    def __init__(
+        self,
+        api_key: str | None,
+        *,
+        vertex: bool = False,
+        project: str | None = None,
+        location: str = "global",
+    ):
         self._key = api_key
+        self._vertex = vertex
+        self._project = project
+        self._location = location
         self._client = None
 
     def available(self) -> bool:
-        return bool(self._key)
+        return bool(self._key) or (self._vertex and bool(self._project))
 
     def _get(self):
         if self._client is None:
             from google import genai
 
-            self._client = genai.Client(api_key=self._key)
+            if self._vertex:
+                # No key: auth via Application Default Credentials (service account on Cloud Run).
+                self._client = genai.Client(vertexai=True, project=self._project, location=self._location)
+            else:
+                self._client = genai.Client(api_key=self._key)
         return self._client
 
     def generate_json(self, req: LLMRequest) -> dict[str, Any]:

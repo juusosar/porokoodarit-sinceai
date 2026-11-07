@@ -25,7 +25,9 @@ _providers: dict[str, LLMProvider] = {}
 def providers() -> dict[str, LLMProvider]:
     if not _providers:
         s = get_settings()
-        _providers["gemini"] = GeminiProvider(s.gemini_api_key)
+        _providers["gemini"] = GeminiProvider(
+            s.gemini_api_key, vertex=s.gemini_vertex, project=s.gcp_project, location=s.gcp_location
+        )
         # Claude / OpenAI adapters plug in here with the same interface (~50 lines each).
     return _providers
 
