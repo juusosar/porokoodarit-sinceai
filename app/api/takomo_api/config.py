@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     llm_model_final: str = "gemini-pro-latest"
     llm_timeout_s: float = 6.0
     gemini_api_key: str | None = None
+    # Keyless alternative: Vertex AI via Application Default Credentials (Cloud Run service account,
+    # or `gcloud auth application-default login` locally). Takes precedence over the API key.
+    gemini_vertex: bool = False
+    gcp_project: str | None = None
+    gcp_location: str = "global"
     # Models the demo panel may switch to (comma-separated). Env-configured role models are always allowed.
     llm_model_allowlist: str = (
         "gemini-flash-latest,gemini-flash-lite-latest,gemini-pro-latest,gemini-2.5-flash,gemini-2.5-pro"
