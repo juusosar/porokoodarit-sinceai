@@ -103,26 +103,49 @@ export type ChatReply = {
   audio_token?: string | null;
 };
 
+/** Server chat budget is 12 s (TAKOMO_LLM_TIMEOUT_S_CHAT); past this the client gives up and shows a local line. */
+export const CHAT_CLIENT_TIMEOUT_MS = 15_000;
+
+/** Abort on the caller's signal or after `ms` (cold start / hung request never leaves the chat on dots). */
+function withTimeout(ms: number, signal?: AbortSignal): { signal: AbortSignal; done: () => void } {
+  const c = new AbortController();
+  const timer = setTimeout(() => c.abort(new DOMException("timed out", "TimeoutError")), ms);
+  const forward = () => c.abort(signal?.reason);
+  if (signal?.aborted) forward();
+  else signal?.addEventListener("abort", forward, { once: true });
+  const done = () => {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forward);
+  };
+  return { signal: c.signal, done };
+}
+
 /** One profiling turn with the host. Only chat text + the profile labels are sent; never video. */
 export async function postChat(
   messages: { role: "user" | "assistant"; text: string }[],
   profile: Record<string, ChatField>,
   signal?: AbortSignal,
+  timeoutMs = CHAT_CLIENT_TIMEOUT_MS,
 ): Promise<ChatReply> {
-  const r = await fetch(`${API_URL}/v1/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // API accepts 1-60 char labels (VALUE_MAX in api/takomo_api/llm/chat.py); trim rather than fail every later turn with 422.
-    body: JSON.stringify({
-      messages,
-      profile: Object.fromEntries(
-        Object.entries(profile)
-          .filter(([, f]) => f.value.trim())
-          .map(([k, f]) => [k, { value: f.value.trim().slice(0, 60), status: f.status }]),
-      ),
-    }),
-    signal,
-  });
-  if (!r.ok) throw new Error(`API ${r.status}`);
-  return r.json();
+  const t = withTimeout(timeoutMs, signal);
+  try {
+    const r = await fetch(`${API_URL}/v1/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // API accepts 1-60 char labels (VALUE_MAX in api/takomo_api/llm/chat.py); trim rather than fail every later turn with 422.
+      body: JSON.stringify({
+        messages,
+        profile: Object.fromEntries(
+          Object.entries(profile)
+            .filter(([, f]) => f.value.trim())
+            .map(([k, f]) => [k, { value: f.value.trim().slice(0, 60), status: f.status }]),
+        ),
+      }),
+      signal: t.signal,
+    });
+    if (!r.ok) throw new Error(`API ${r.status}`);
+    return await r.json();
+  } finally {
+    t.done();
+  }
 }
