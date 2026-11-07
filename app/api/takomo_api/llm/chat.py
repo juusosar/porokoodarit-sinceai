@@ -255,8 +255,10 @@ def chat(req: ChatRequest) -> ChatReply:
         return template_reply(req, _public(f"guard: {problem}"), t0)
     profile = {k: v for k, v in out.profile.items() if k in PROFILE_FIELDS and v is not None}
     reply = out.reply
+    # At most one double-check per chat: once the golfer has redone an answer, trust what they say.
+    recheck = None if any(m.text.startswith("[Recheck") for m in req.messages) else out.recheck
     # The UI only shows Yes/No after this exact question: never leave the golfer without buttons.
-    if _needs_confirm(req) and not out.recheck and CONFIRM.lower() not in reply.lower():
+    if _needs_confirm(req) and not recheck and CONFIRM.lower() not in reply.lower():
         reply = f"{reply.rstrip()} {CONFIRM}"
     return ChatReply(
         source="llm",
@@ -265,5 +267,5 @@ def chat(req: ChatRequest) -> ChatReply:
         latency_ms=int((time.perf_counter() - t0) * 1000),
         reply=reply,
         profile=profile,
-        recheck=out.recheck,
+        recheck=recheck,
     )
