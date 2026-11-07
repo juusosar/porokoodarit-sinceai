@@ -41,3 +41,6 @@ CI fails if either generated file is stale.
 Lovable exports use the same stack (Vite, React, TS, Tailwind, shadcn). Copy their `src/components` and
 `src/pages` into `app/web/src`. Keep our `src/index.css` tokens and `tailwind.config.ts`; theirs are not needed.
 Use semantic classes (`bg-background`, `text-primary`, `bg-card`) not raw hex, so the Takomo theme applies.
+
+## Git workflow
+Rebase-merge only, linear history. See [../CONTRIBUTING.md](../CONTRIBUTING.md).
