@@ -31,6 +31,9 @@ export type StageTiming = {
   /** Medians: steady-state per-frame cost, without first-run spikes. */
   poseMedianMs: number;
   clubMedianMs: number;
+  /** Club split: pixel read + tensor fill vs model run (incl. GPU readback). */
+  clubPrepMedianMs: number;
+  clubInferMedianMs: number;
 };
 export type SwingPipelineResult = {
   width: number;
@@ -78,6 +81,8 @@ const newTiming = (): StageTiming => ({
   clubMs: 0,
   poseMedianMs: NaN,
   clubMedianMs: NaN,
+  clubPrepMedianMs: NaN,
+  clubInferMedianMs: NaN,
 });
 const median = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : NaN);
 
@@ -187,6 +192,8 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
     const raw2: (Pt | null)[] = [];
     const poseMs2: number[] = [];
     const clubMs2: number[] = [];
+    const clubPrep2: number[] = [];
+    const clubInfer2: number[] = [];
     {
       const s = performance.now();
       const expected = Math.max(1, Math.round((window.end - window.start) * (clipFps ?? 30)));
@@ -206,8 +213,10 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
           let club: Pt | null = null;
           if (detector) {
             const c = performance.now();
-            const { box } = await detectLetterboxed(detector, n.value.canvas, lb);
+            const { box, prepMs, inferMs } = await detectLetterboxed(detector, n.value.canvas, lb);
             clubMs2.push(performance.now() - c);
+            clubPrep2.push(prepMs);
+            clubInfer2.push(inferMs);
             p2.clubMs += clubMs2[clubMs2.length - 1];
             if (box) club = { x: box.x * W, y: box.y * H };
           }
@@ -223,6 +232,8 @@ export async function runSwingPipeline(file: File, opts: PipelineOptions): Promi
       p2.frames = t2.length;
       p2.poseMedianMs = median(poseMs2);
       p2.clubMedianMs = median(clubMs2);
+      p2.clubPrepMedianMs = median(clubPrep2);
+      p2.clubInferMedianMs = median(clubInfer2);
       p2.ms = performance.now() - s;
     }
 

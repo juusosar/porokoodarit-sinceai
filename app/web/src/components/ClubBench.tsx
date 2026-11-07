@@ -42,6 +42,12 @@ function stageRow(name: string, s: StageTiming) {
         <span className="text-muted-foreground">
           per frame: decode {fmt(s.decodeMs / Math.max(s.frames, 1))} · pose {fmt(s.poseMedianMs)} · club{" "}
           {fmt(s.clubMedianMs)} ms (medians)
+          {Number.isFinite(s.clubMedianMs) && (
+            <>
+              <br />
+              club split: pixel read {fmt(s.clubPrepMedianMs)} · model {fmt(s.clubInferMedianMs)} ms
+            </>
+          )}
         </span>
       </dd>
     </>
