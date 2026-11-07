@@ -3,6 +3,7 @@ import { DemoPanel, demoEnabled } from "@/components/DemoPanel";
 import { FitCard } from "@/components/fit/FitCard";
 import { FollowUp } from "@/components/fit/FollowUp";
 import { HostLine } from "@/components/fit/HostLine";
+import { VoiceToggle } from "@/features/voice";
 import { WhatChanged } from "@/components/fit/WhatChanged";
 import { useFit } from "@/lib/fit-store";
 import { STEPS, stepIndex } from "@/lib/steps";
@@ -22,6 +23,7 @@ export function Layout() {
           Takomo <span className="text-primary">Fitter</span>
         </Link>
         <span className="flex items-center gap-3 text-xs text-muted-foreground">
+          <VoiceToggle />
           {hasData && (
             <button
               type="button"
