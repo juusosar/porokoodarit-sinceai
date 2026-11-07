@@ -5,6 +5,7 @@ import type { Answers, FitRequest, FitState, Measurements, Observation } from "@
 // Browser-only fitting state (privacy default: nothing persisted server-side).
 // Answers + measured numbers (never video) are saved in this browser so a golfer can come back (POR-18).
 const SAVE_KEY = "takomo-fit-v1";
+const SAVE_TTL_MS = 30 * 24 * 3600 * 1000; // same 30 days as the planned server-side saved fitting
 
 type Saved = { answers: Answers; measurements: Measurements };
 type Inputs = Saved;
@@ -31,8 +32,12 @@ function load(): Saved {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) {
-      const s = JSON.parse(raw) as Partial<Saved>;
-      return { answers: s.answers ?? {}, measurements: s.measurements ?? {} };
+      const s = JSON.parse(raw) as Partial<Saved> & { savedAt?: number };
+      if (!s.savedAt || Date.now() - s.savedAt > SAVE_TTL_MS) {
+        clearSaved();
+      } else {
+        return { answers: s.answers ?? {}, measurements: s.measurements ?? {} };
+      }
     }
   } catch {
     /* private mode / blocked storage: start fresh */
@@ -42,7 +47,16 @@ function load(): Saved {
 
 function save(s: Saved) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+    if (!Object.keys(s.answers).length && !Object.keys(s.measurements).length) return clearSaved();
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...s, savedAt: Date.now() }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearSaved() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
   } catch {
     /* ignore */
   }
@@ -63,6 +77,9 @@ export function FitProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef<FitState | null>(null);
   const lastReq = useRef<FitRequest | null>(null);
   const ctrl = useRef<AbortController | null>(null);
+  // Explain calls get their own controllers: a new step cancels a late step line, and the
+  // final walkthrough is only cancelled by the next walkthrough or a reset.
+  const explainCtrl = useRef<Record<string, AbortController | undefined>>({});
 
   const apply = useCallback((next: Inputs) => {
     inputs.current = next;
@@ -72,8 +89,11 @@ export function FitProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const explain = useCallback((req: FitRequest, prev: FitRequest | null, role: "step_line" | "final_walkthrough") => {
-    postExplain(req, prev, role, ctrl.current?.signal).then(
-      role === "final_walkthrough" ? setFinal : setExplanation,
+    explainCtrl.current[role]?.abort();
+    const c = new AbortController();
+    explainCtrl.current[role] = c;
+    postExplain(req, prev, role, c.signal).then(
+      (e) => !c.signal.aborted && (role === "final_walkthrough" ? setFinal : setExplanation)(e),
       () => undefined,
     );
   }, []);
@@ -87,8 +107,10 @@ export function FitProvider({ children }: { children: ReactNode }) {
       };
       apply(next);
       ctrl.current?.abort();
+      explainCtrl.current.step_line?.abort();
       const c = new AbortController();
       ctrl.current = c;
+      setExplanation(null); // never show a line for an older fit next to the new card
       const req: FitRequest = {
         step,
         answers: next.answers,
@@ -103,10 +125,21 @@ export function FitProvider({ children }: { children: ReactNode }) {
         const prevReq = lastReq.current;
         stateRef.current = st;
         lastReq.current = req;
+        setFinal(null);
         setState(st);
         explain(req, prevReq, "step_line");
       } catch (e) {
-        if (!c.signal.aborted) setError((e as Error).message);
+        if (c.signal.aborted) return;
+        const msg = (e as Error).message;
+        if (step === "resume" && msg.startsWith("API 422")) {
+          // saved inputs no longer valid (schema moved on): start fresh instead of a stuck error
+          clearSaved();
+          inputs.current = { answers: {}, measurements: {} };
+          setA({});
+          setM({});
+          return;
+        }
+        setError(msg);
       } finally {
         if (!c.signal.aborted) setLoading(false);
       }
@@ -142,6 +175,9 @@ export function FitProvider({ children }: { children: ReactNode }) {
       walkthrough: () => lastReq.current && explain(lastReq.current, null, "final_walkthrough"),
       reset: () => {
         ctrl.current?.abort();
+        Object.values(explainCtrl.current).forEach((c) => c?.abort());
+        setLoading(false);
+        setError(null);
         apply({ answers: {}, measurements: {} });
         stateRef.current = null;
         lastReq.current = null;

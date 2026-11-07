@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useFit } from "@/lib/fit-store";
 import { renderReason } from "@/lib/reasons";
@@ -8,6 +9,10 @@ import type { Answers, Measurements } from "@/types/fit-state";
 export function FollowUp() {
   const { state, commit } = useFit();
   const w = state?.warnings?.find((r) => r.code === "CONTRADICTION");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (w) ref.current?.focus(); // move focus to the question so screen readers read it
+  }, [w]);
   if (!w) return null;
   const input = String(w.params?.input) as keyof Answers;
   const meas = String(w.params?.measurement ?? w.params?.input) as keyof Measurements;
@@ -20,10 +25,10 @@ export function FollowUp() {
     >
       <p>{renderReason(w)}</p>
       <div className="flex gap-2">
-        <Button size="sm" onClick={() => commit(step, { answers: { [input]: null } })}>
+        <Button className="min-h-11" onClick={() => commit(step, { answers: { [input]: null } })}>
           Use measured ({String(w.params?.measured)} {String(w.params?.unit)})
         </Button>
-        <Button size="sm" variant="outline" onClick={() => commit(step, { measurements: { [meas]: null } })}>
+        <Button className="min-h-11" variant="outline" onClick={() => commit(step, { measurements: { [meas]: null } })}>
           Use mine ({String(w.params?.asked)} {String(w.params?.asked_unit ?? w.params?.unit)})
         </Button>
       </div>

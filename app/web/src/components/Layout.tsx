@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { DemoPanel, demoEnabled } from "@/components/DemoPanel";
 import { FitCard } from "@/components/fit/FitCard";
 import { FollowUp } from "@/components/fit/FollowUp";
@@ -11,7 +11,9 @@ export function Layout() {
   const { pathname } = useLocation();
   const i = stepIndex(pathname);
   const step = STEPS[i];
-  const { error } = useFit();
+  const { error, loading, state, answers, reset } = useFit();
+  const nav = useNavigate();
+  const hasData = !!state || Object.keys(answers).length > 0;
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col">
       {demoEnabled() && <DemoPanel />}
@@ -19,10 +21,25 @@ export function Layout() {
         <Link to="/" className="font-display text-2xl font-extrabold italic uppercase">
           Takomo <span className="text-primary">Fitter</span>
         </Link>
-        <span className="text-xs text-muted-foreground">
+        <span className="flex items-center gap-3 text-xs text-muted-foreground">
+          {hasData && (
+            <button
+              type="button"
+              className="min-h-11 underline"
+              onClick={() => {
+                reset();
+                nav("/");
+              }}
+            >
+              Start over
+            </button>
+          )}
           {i + 1} / {STEPS.length}
         </span>
       </header>
+      <p className="sr-only" aria-live="polite">
+        {loading ? "Updating your fit…" : state ? "Fit updated." : ""}
+      </p>
       <div
         className="h-1 bg-muted"
         role="progressbar"

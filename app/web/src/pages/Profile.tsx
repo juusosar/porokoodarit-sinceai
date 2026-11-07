@@ -48,7 +48,7 @@ function Choice<T extends string | number>({
             aria-pressed={value === v}
             onClick={() => onChange(value === v ? null : v)}
             className={cn(
-              "border px-3 py-1.5 text-sm",
+              "min-h-11 min-w-11 border px-3 py-1.5 text-sm",
               value === v ? "border-primary bg-primary text-primary-foreground" : "border-border",
             )}
           >
@@ -58,6 +58,12 @@ function Choice<T extends string | number>({
       </div>
     </fieldset>
   );
+}
+
+// round total inches first, so 6 ft never shows as "5 ft 12 in"
+function toFtIn(cm: number): { ft: number; inch: number } {
+  const total = Math.round(cm / IN_CM);
+  return { ft: Math.floor(total / 12), inch: total % 12 };
 }
 
 function num(v: string): number | null {
@@ -74,18 +80,29 @@ export function Profile() {
   const set = (patch: Partial<Answers>) => setA((cur) => ({ ...cur, ...patch }));
 
   // height in ft + in (imperial first), stored in cm
-  const ftIn = a.height_cm
-    ? {
-        ft: Math.floor(a.height_cm / IN_CM / 12),
-        inch: Math.round((a.height_cm / IN_CM) % 12),
-      }
-    : null;
+  const ftIn = a.height_cm ? toFtIn(a.height_cm) : null;
   const [ft, setFt] = useState(ftIn ? String(ftIn.ft) : "");
   const [inch, setInch] = useState(ftIn ? String(ftIn.inch) : "");
   const [cm, setCm] = useState(a.height_cm ? String(Math.round(a.height_cm)) : "");
   const [w2f, setW2f] = useState(
     a.wrist_to_floor_cm ? String(metric ? a.wrist_to_floor_cm : +(a.wrist_to_floor_cm / IN_CM).toFixed(1)) : "",
   );
+
+  // switch units keeping the values: convert what's typed instead of dropping or relabelling it
+  function toggleUnits() {
+    const h = heightCm();
+    const w = num(w2f);
+    if (metric) {
+      const fi = h === null ? null : toFtIn(h);
+      setFt(fi ? String(fi.ft) : "");
+      setInch(fi ? String(fi.inch) : "");
+      setW2f(w === null ? "" : String(+(w / IN_CM).toFixed(1)));
+    } else {
+      setCm(h === null ? "" : String(Math.round(h)));
+      setW2f(w === null ? "" : String(Math.round(w * IN_CM)));
+    }
+    setMetric(!metric);
+  }
 
   function heightCm(): number | null {
     if (metric) return num(cm);
@@ -137,7 +154,7 @@ export function Profile() {
       <fieldset className="space-y-1">
         <legend className="flex w-full justify-between text-sm text-muted-foreground">
           Height
-          <button type="button" className="text-xs underline" onClick={() => setMetric(!metric)}>
+          <button type="button" className="min-h-11 px-2 text-xs underline" onClick={toggleUnits}>
             {metric ? "use ft/in" : "use cm"}
           </button>
         </legend>
@@ -249,7 +266,7 @@ export function Profile() {
                   });
                 }}
                 className={cn(
-                  "border px-3 py-1.5 text-sm disabled:opacity-40",
+                  "min-h-11 border px-3 py-1.5 text-sm disabled:opacity-40",
                   on ? "border-primary bg-primary text-primary-foreground" : "border-border",
                 )}
               >
@@ -266,7 +283,8 @@ export function Profile() {
           [
             [30, "Under 40"],
             [50, "40–59"],
-            [65, "60+"],
+            [65, "60–69"],
+            [72, "70+"],
           ] as const
         }
         value={a.age}
