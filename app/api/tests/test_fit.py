@@ -221,3 +221,46 @@ def test_contradiction_asked_vs_measured():
         )
     )
     assert not [r for r in st.warnings if r.code == "CONTRADICTION"]
+
+
+# ------------------------------------------------------------------ review fixes (POR-27)
+def _codes(s, part):
+    return {r.code: r.params for r in s.parts[part].reasons}
+
+
+def test_head_priority_only_claims_what_the_head_is_strong_on():
+    # 85-92 golfer at 71-80 mph wanting forgiveness: 201 wins on score/speed, 101 is more forgiving
+    s = F.run(FitRequest(step="profile", answers=full_answers(characteristics=["forgiveness", "distance"])))
+    codes = _codes(s, "head")
+    assert s.parts["head"].value == "201-mkii"
+    assert "forgiveness" not in str(codes.get("HEAD_PRIORITY", {}).get("priorities", ""))
+    assert "HEAD_ALT_STRONGER" in codes
+    assert "HEAD_FORGIVENESS_PENALTY" not in codes  # no 301 in contention
+
+
+def test_assumed_flight_and_tempo_are_labelled():
+    s = F.run(FitRequest(step="profile", answers=full_answers(flight=None, tempo=None)))
+    p = _codes(s, "shaft")["SHAFT_MODEL_MATCH"]
+    assert "assumed" in p["flight"] and "assumed" in p["tempo"]
+    s = F.run(FitRequest(step="profile", answers=full_answers()))
+    assert "assumed" not in _codes(s, "shaft")["SHAFT_MODEL_MATCH"]["flight"]
+
+
+def test_shaft_lie_length_explain_effect_on_shots():
+    s = F.run(FitRequest(step="profile", answers=full_answers()))
+    assert {"SHAFT_LAUNCH", "SHAFT_WEIGHT_FEEL"} <= set(_codes(s, "shaft"))
+    assert "LENGTH_EFFECT" in _codes(s, "length")
+    eff = _codes(s, "lie")["LIE_EFFECT"]
+    assert eff["upright_dir"] == "left" and eff["offline_yd"] > 0
+    assert "NEED_MORE_EVIDENCE" not in _codes(s, "lie")  # wrist-to-floor given
+    s = F.run(FitRequest(step="profile", answers=full_answers(wrist_to_floor_cm=None)))
+    assert "wrist-to-floor" in _codes(s, "lie")["NEED_MORE_EVIDENCE"]["next_step"]
+
+
+def test_carry_read_and_loft_honesty():
+    s = F.run(FitRequest(step="profile", answers=full_answers(speed_7i_mph=None, carry_7i_yd=140)))
+    c = _codes(s, "shaft")
+    assert c["CARRY_READ"] == {"said": 140, "used": 125}
+    assert "SPEED_FROM_CARRY_TYPICAL_LOFT" in c
+    s = F.run(FitRequest(step="profile", answers=full_answers(speed_7i_mph=None, carry_7i_yd=140, own_7i_loft_deg=28)))
+    assert _codes(s, "shaft")["SPEED_FROM_CARRY_LOFT"]["loft"] == 28
