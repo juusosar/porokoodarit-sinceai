@@ -95,19 +95,27 @@ function fallback(): void {
   browserSpeak(c.line.text);
 }
 
-/** Runs inside the first user gesture: primes the shared element and the browser voice. */
+/**
+ * Runs inside user gestures until one succeeds: plays inside the gesture so the shared element (and the
+ * browser voice) count as user-started. A line blocked earlier (e.g. on page load) plays right here;
+ * otherwise a short silent clip primes the element.
+ */
 export function unlock(): void {
   if (unlocked || voiceMode() === "off") return;
-  unlocked = true;
   const a = element();
-  if (!a.getAttribute("src")) {
-    a.src = SILENT;
-    a.play()
-      .then(() => {
-        if (a.src === SILENT) a.pause();
-      })
-      .catch(() => undefined);
+  if (cur?.started) {
+    unlocked = true; // a line is already playing: the element works, don't cut it off
+    return;
   }
+  const pending = cur && !cur.started && a.getAttribute("src") ? cur : null;
+  if (!pending) a.src = SILENT;
+  a.play().then(
+    () => {
+      unlocked = true;
+      if (!pending && a.src === SILENT) a.pause();
+    },
+    () => undefined, // not a gesture this browser accepts (or aborted by a new line): retry on the next one
+  );
   try {
     window.speechSynthesis?.speak(new SpeechSynthesisUtterance(""));
   } catch {
@@ -116,7 +124,8 @@ export function unlock(): void {
 }
 
 if (typeof window !== "undefined") {
-  for (const ev of ["pointerdown", "keydown", "touchend"]) {
+  // iOS counts touchend/pointerup/click as media gestures, not pointerdown/touchstart.
+  for (const ev of ["touchend", "pointerup", "click", "keydown"]) {
     window.addEventListener(ev, unlock, { capture: true, passive: true });
   }
 }
