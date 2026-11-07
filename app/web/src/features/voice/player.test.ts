@@ -5,6 +5,8 @@ type FakeAudio = {
   play: ReturnType<typeof vi.fn>;
   pause: () => void;
   removeAttribute: () => void;
+  load: () => void;
+  preload?: string;
   addEventListener: (t: string, f: () => void) => void;
   fire: (t: string) => void;
 };
@@ -20,13 +22,14 @@ beforeEach(() => {
   window.__TAKOMO_ENV__ = { VITE_API_URL: "https://api.test" };
   vi.stubGlobal(
     "Audio",
-    vi.fn((src: string) => {
+    vi.fn((src?: string) => {
       const h: Record<string, () => void> = {};
       const a: FakeAudio = {
-        src,
+        src: src ?? "",
         play: vi.fn(() => Promise.resolve()),
         pause: () => undefined,
         removeAttribute: () => undefined,
+        load: () => undefined,
         addEventListener: (t, f) => (h[t] = f),
         fire: (t) => h[t]?.(),
       };
@@ -65,14 +68,24 @@ describe("voice player", () => {
     expect(spoken).toEqual([]);
   });
 
-  it("uses the browser voice without a token, and on audio error", async () => {
+  it("is silent without a token unless asked, and falls back on audio error", async () => {
     const p = await load();
     p.speak({ text: "No token" });
-    expect(audios).toHaveLength(0);
+    expect(audios.length + spoken.length).toBe(0);
+    p.speak({ text: "No token" }, true);
     expect(spoken).toEqual(["No token"]);
     p.speak({ text: "Server down", token: "t" });
+    expect(audios[0].preload).toBe("none");
     audios[0].fire("error");
     expect(spoken).toEqual(["No token", "Server down"]);
+  });
+
+  it("does not repeat a line in the browser voice once audio started", async () => {
+    const p = await load();
+    p.speak({ text: "Cut off", token: "t" });
+    audios[0].fire("playing");
+    audios[0].fire("error");
+    expect(spoken).toEqual([]);
   });
 
   it("stays quiet when muted unless forced, and remembers mute", async () => {
