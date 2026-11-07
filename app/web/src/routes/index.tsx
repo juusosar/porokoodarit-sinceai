@@ -82,7 +82,7 @@ function Intro({ onStart, onResume, loading }: { onStart: () => void; onResume?:
           Let's find <span className="text-primary">your fit.</span>
         </h1>
         <p className="mt-5 max-w-md text-lg text-muted-foreground">
-          Chat with Grant for three minutes. He asks the nosy questions a real fitter would, politely doubts your 170-yard 7-iron, and builds a spec you can actually trust.
+          Chat with Grant for three minutes. He asks the questions a real fitter would, reads your carry the way a fitter does (most of us remember our best shot), and shows the evidence behind every part of your spec.
         </p>
         <Button
           disabled={loading}
