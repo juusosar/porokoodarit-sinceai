@@ -1,8 +1,10 @@
 import { useFit } from "@/lib/fit-store";
+import { lineOf, useSpeakLine } from "@/features/voice";
 
 // The host's line for the latest step, with a badge saying where it came from (AI or template).
 export function HostLine() {
   const { explanation } = useFit();
+  useSpeakLine(lineOf(explanation));
   if (!explanation) return null;
   const ai = explanation.source === "llm";
   return (

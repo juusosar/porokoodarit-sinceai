@@ -61,6 +61,8 @@ export type Explanation = {
   caption: string;
   parts: Partial<Record<string, string>>;
   fallback_reason: string | null;
+  /** Present when server voice (TTS) is on; see features/voice. */
+  audio_token?: string | null;
 };
 
 // Server re-runs the engine from inputs; a fit state is never sent (prompt-injection safe).

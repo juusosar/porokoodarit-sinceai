@@ -1,9 +1,6 @@
 """FastAPI entry point. Run: uvicorn takomo_api.main:app --reload"""
 
 import hmac
-import threading
-import time
-from collections import defaultdict, deque
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,29 +12,9 @@ from .config import get_settings
 from .engine import fit as engine
 from .llm import registry
 from .llm.explain import Explanation, Role, explain
+from .ratelimit import RateLimiter, client_key
 from .schema import SCHEMA_VERSION, FitRequest, FitState
-
-
-class RateLimiter:
-    """Sliding 60 s window per client key. In memory, per instance (fine for the MVP / one Cloud Run instance)."""
-
-    def __init__(self, per_min: int):
-        self.per_min = per_min
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
-        self._lock = threading.Lock()
-
-    def allow(self, key: str) -> bool:
-        now = time.monotonic()
-        with self._lock:
-            q = self._hits[key]
-            while q and now - q[0] > 60:
-                q.popleft()
-            if len(q) >= self.per_min:
-                return False
-            q.append(now)
-            if len(self._hits) > 10_000:  # bound memory
-                self._hits = defaultdict(deque, {k: v for k, v in self._hits.items() if v})
-            return True
+from .tts import router as voice
 
 
 def create_app() -> FastAPI:
@@ -48,8 +25,13 @@ def create_app() -> FastAPI:
         allow_origins=settings.cors_origin_list,
         allow_methods=["GET", "POST", "PUT"],
         allow_headers=["*"],
+        expose_headers=["X-Cache"],
     )
     limiter = RateLimiter(settings.explain_rate_per_min)
+    # Voice (TTS) is a self-contained module: TAKOMO_TTS_PROVIDER=none leaves no route and no token behind.
+    voice_on = voice.enabled()
+    if voice_on:
+        app.include_router(voice.build_router())
 
     @app.middleware("http")
     async def body_cap(request: Request, call_next):
@@ -82,17 +64,16 @@ def create_app() -> FastAPI:
     @app.post("/v1/explain", response_model=Explanation)
     def explain_fit(req: ExplainRequest, request: Request) -> Explanation:
         """Host lines for the current fit. Never fails: falls back to reason-code templates."""
-        # rightmost XFF entry is the one our proxy (Cloud Run front end) added; leftmost is client-controlled
-        client = request.headers.get("x-forwarded-for", "").split(",")[-1].strip() or (
-            request.client.host if request.client else "?"
-        )
-        if not limiter.allow(client):
+        if not limiter.allow(client_key(request)):
             raise HTTPException(429, "too many explain calls, slow down")
         prev = None
         if req.previous_request is not None:
             prev = engine.run(req.previous_request.model_copy(update={"previous": None}))
         state = engine.run(req.request.model_copy(update={"previous": prev}))
-        return explain(state, req.role)
+        out = explain(state, req.role)
+        if voice_on:
+            out.audio_token = voice.audio_token(out.spoken_line)
+        return out
 
     class RoleSetting(BaseModel):
         provider: str
@@ -100,7 +81,7 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/settings")
     def get_llm_settings() -> dict:
-        return registry.snapshot() | {"demo_mode": settings.demo_mode}
+        return registry.snapshot() | {"demo_mode": settings.demo_mode, "voice": voice.status()}
 
     @app.put("/v1/settings")
     def put_llm_settings(roles: dict[str, RoleSetting], x_demo_token: str | None = Header(default=None)) -> dict:

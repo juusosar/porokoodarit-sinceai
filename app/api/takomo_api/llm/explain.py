@@ -49,6 +49,8 @@ class Explanation(BaseModel):
     caption: str
     parts: dict[SpecPart, str] = Field(default_factory=dict)
     fallback_reason: str | None = None
+    # Set by the voice module when TTS is on: lets the client fetch audio for exactly this spoken_line.
+    audio_token: str | None = None
 
 
 @lru_cache(maxsize=1)

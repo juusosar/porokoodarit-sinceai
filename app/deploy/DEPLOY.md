@@ -7,7 +7,7 @@ works: Cloud Run, Fly.io, Railway, Azure Container Apps, AWS App Runner, a VM wi
 | Image | Build | Config |
 |---|---|---|
 | `api` | `docker build -t takomo-api app/api` | `TAKOMO_*` env vars (see `api/.env.example`) |
-| `web` | `docker build -f web/Dockerfile -t takomo-web app` (context `app/`, needs `app/shared`) | `VITE_API_URL`, `VITE_SHOP_URL`, `VITE_CLUB_TRACKING`, read at container start |
+| `web` | `docker build -f web/Dockerfile -t takomo-web app` (context `app/`, needs `app/shared`) | `VITE_API_URL`, `VITE_SHOP_URL`, `VITE_CLUB_TRACKING`, `VITE_VOICE`, read at container start |
 
 The web image writes `/env.js` from its env at start, so the **same image** runs against any API URL.
 Without a value, the build-time `VITE_*` value (or app default) is used. Vercel / `npm run dev` use the
@@ -45,6 +45,18 @@ Careful: default service name `takomo-api` (`API_SERVICE`) + `--min-instances 1`
 5. Health check: API `GET /health`, web `GET /`.
 
 Vertex keyless auth only works on GCP (service account). Elsewhere use `TAKOMO_GEMINI_API_KEY` as a secret.
+
+## Voice (ElevenLabs TTS, optional)
+Off unless `TAKOMO_TTS_PROVIDER=elevenlabs`. Key lives in Secret Manager, never in env files or the web app:
+```bash
+printf '%s' "$ELEVENLABS_KEY" | gcloud secrets create takomo-elevenlabs-key --data-file=- --replication-policy=automatic
+gcloud secrets add-iam-policy-binding takomo-elevenlabs-key \
+  --member "serviceAccount:<run-service-account>" --role roles/secretmanager.secretAccessor
+gcloud run services update takomo-api --region europe-north1 \
+  --set-secrets TAKOMO_ELEVENLABS_API_KEY=takomo-elevenlabs-key:latest \
+  --update-env-vars TAKOMO_TTS_PROVIDER=elevenlabs
+```
+Turn off: `--update-env-vars TAKOMO_TTS_PROVIDER=none` (API) or `VITE_VOICE=off` / `browser` (web). Check: `GET /v1/settings` → `voice.on`.
 
 ## Vercel (web, current)
 Unchanged: root `app/web`, `VITE_*` set as build env in Vercel.
