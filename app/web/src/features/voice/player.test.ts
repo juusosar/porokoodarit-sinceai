@@ -4,7 +4,8 @@ type FakeAudio = {
   src: string;
   play: ReturnType<typeof vi.fn>;
   pause: () => void;
-  removeAttribute: () => void;
+  removeAttribute: (n: string) => void;
+  getAttribute: (n: string) => string | null;
   load: () => void;
   preload?: string;
   addEventListener: (t: string, f: () => void) => void;
@@ -28,7 +29,10 @@ beforeEach(() => {
         src: src ?? "",
         play: vi.fn(() => Promise.resolve()),
         pause: () => undefined,
-        removeAttribute: () => undefined,
+        removeAttribute: () => {
+          a.src = "";
+        },
+        getAttribute: () => a.src || null,
         load: () => undefined,
         addEventListener: (t, f) => (h[t] = f),
         fire: (t) => h[t]?.(),
@@ -39,7 +43,9 @@ beforeEach(() => {
   );
   vi.stubGlobal(
     "SpeechSynthesisUtterance",
-    vi.fn(function (t: string) { return { text: t }; }),
+    vi.fn(function (t: string) {
+      return { text: t };
+    }),
   );
   Object.defineProperty(window, "speechSynthesis", {
     configurable: true,
@@ -62,9 +68,7 @@ describe("voice player", () => {
     const p = await load();
     p.speak({ text: "Hello golfer", token: "abc" });
     expect(audios).toHaveLength(1);
-    expect(audios[0].src).toBe(
-      "https://api.test/v1/speak?text=Hello+golfer&token=abc",
-    );
+    expect(audios[0].src).toBe("https://api.test/v1/speak?text=Hello+golfer&token=abc");
     expect(spoken).toEqual([]);
   });
 
@@ -85,6 +89,33 @@ describe("voice player", () => {
     p.speak({ text: "Cut off", token: "t" });
     audios[0].fire("playing");
     audios[0].fire("error");
+    expect(spoken).toEqual([]);
+  });
+
+  it("reuses one element for every line (Safari/iOS unlock)", async () => {
+    const p = await load();
+    p.speak({ text: "One", token: "t" });
+    p.speak({ text: "Two", token: "t" });
+    expect(audios).toHaveLength(1);
+    expect(audios[0].src).toContain("text=Two");
+  });
+
+  it("first tap primes the element with a silent clip", async () => {
+    const p = await load();
+    p.unlock();
+    expect(audios).toHaveLength(1);
+    expect(audios[0].src).toMatch(/^data:audio\/wav/);
+    expect(audios[0].play).toHaveBeenCalled();
+    expect(spoken).toEqual([""]);
+  });
+
+  it("autoplay block stays quiet (no browser-voice fallback)", async () => {
+    const p = await load();
+    p.speak({ text: "Blocked", token: "t" });
+    const err = Object.assign(new Error("blocked"), { name: "NotAllowedError" });
+    audios[0].play.mockReturnValueOnce(Promise.reject(err));
+    p.speak({ text: "Blocked2", token: "t" });
+    await new Promise((r) => setTimeout(r));
     expect(spoken).toEqual([]);
   });
 
