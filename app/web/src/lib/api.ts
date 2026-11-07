@@ -101,6 +101,7 @@ export type ChatReply = {
   profile: Record<string, ChatField>;
   recheck: { field: string; reason: string } | null;
   fallback_reason: string | null;
+  audio_token?: string | null;
 };
 
 /** One profiling turn with the host. Only chat text + the profile labels are sent; never video. */

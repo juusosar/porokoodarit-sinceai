@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postChat } from "@/lib/api";
 import type { Profile, UIMessage } from "@/lib/fitting-schema";
+import type { Line } from "@/features/voice/player";
 
 type Status = "ready" | "submitted" | "streaming" | "error";
 
@@ -27,6 +28,8 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
   const [messages, setMessages] = useState<UIMessage[]>(initial);
   const [status, setStatus] = useState<Status>("ready");
   const [error, setError] = useState<Error | undefined>(undefined);
+  // Newest host reply for the voice (not restored history, not offline lines).
+  const [line, setLine] = useState<Line | null>(null);
   const latest = useRef(messages);
   latest.current = messages;
   const ctrl = useRef<AbortController | null>(null);
@@ -59,6 +62,7 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
           const next = [...latest.current, { id: id("a"), role: "assistant" as const, parts }];
           latest.current = next;
           setMessages(next);
+          setLine({ text: r.reply, token: r.audio_token ?? null });
           setStatus("ready");
         },
         (e: unknown) => {
@@ -75,5 +79,5 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
     [profile],
   );
 
-  return { messages, sendMessage, status, error };
+  return { messages, sendMessage, status, error, line };
 }

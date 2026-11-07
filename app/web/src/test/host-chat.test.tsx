@@ -9,12 +9,13 @@ const greet = { id: 'greet', role: 'assistant' as const, parts: [{ type: 'text' 
 beforeEach(() => { postChat.mockReset(); });
 
 it('turns host profile updates and rechecks into message parts', async () => {
-  postChat.mockResolvedValue({ reply: 'Nice.', profile: { hand: { value: 'Right', status: 'sure' } }, recheck: { field: 'carry', reason: 'Long.' } });
+  postChat.mockResolvedValue({ reply: 'Nice.', profile: { hand: { value: 'Right', status: 'sure' } }, recheck: { field: 'carry', reason: 'Long.' }, audio_token: 'a'.repeat(32) });
   const { result } = renderHook(() => useHostChat({ messages: [greet], profile: () => ({}) }));
   act(() => result.current.sendMessage({ text: '[Card 1: The basics] Hand: Right', profile: { hand: { value: 'Right', status: 'sure' } } }));
   await waitFor(() => expect(result.current.status).toBe('ready'));
   expect(postChat.mock.calls[0][1]).toEqual({ hand: { value: 'Right', status: 'sure' } });
   expect(result.current.messages.at(-1)?.parts.map(p => p.type)).toEqual(['tool-update_profile', 'tool-ask_recheck', 'text']);
+  expect(result.current.line).toEqual({ text: 'Nice.', token: 'a'.repeat(32) }); // spoken by the page
 });
 
 it('keeps the cards moving with a local host line when the API is down', async () => {

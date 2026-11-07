@@ -166,3 +166,10 @@ def test_mid_stream_error_ends_quietly_not_cached_refunded(voice_on):
 def test_malformed_token_is_422_not_500(voice_on):
     _, c = voice_on()
     assert c.get("/v1/speak", params={"text": "hi", "token": "é" * 32}).status_code == 422
+
+
+def test_chat_reply_is_signed_for_voice(voice_on):
+    p, c = voice_on()
+    r = c.post("/v1/chat", json={"messages": [{"role": "user", "text": "[Card 1: The basics] Hand: Right"}]}).json()
+    assert r["audio_token"]
+    assert c.get("/v1/speak", params={"text": r["reply"], "token": r["audio_token"]}).status_code == 200
