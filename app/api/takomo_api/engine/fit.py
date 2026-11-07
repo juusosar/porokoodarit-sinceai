@@ -17,10 +17,12 @@ from dataclasses import replace
 from ..schema import (
     Change,
     CloseCall,
+    EvidenceItem,
     EvidenceSource,
     FitRequest,
     FitState,
     HeadOption,
+    NextStep,
     PartState,
     Range,
     Reason,
@@ -45,7 +47,17 @@ SCORE_SHIFT_P = 0.3
 SPEED_RANGE = {1: "under 60", 2: "60-70", 3: "71-80", 4: "81-90", 5: "over 90"}
 FLEX_CODE = {"lady": "L", "senior": "A", "regular": "R", "stiff": "S", "x-stiff": "X"}
 GRIP_EDGES_CM = [18.59, 20.22]  # glove M|M/L (standard|midsize), L|XL (midsize|oversize)
-CATEGORICAL_CONF = {E.measured: 0.9, E.asked: 0.8, E.estimated: 0.5, E.default: 0.3}
+# Categorical inputs (flight, tempo): population mix, and how often an answer is right (lab SIMULATOR:
+# ~70 %, else one step off). A measurement is a likelihood on top; the posterior picks the class.
+TEMPO_CLASSES = ("quick", "moderate", "smooth")
+TEMPO_PRIOR = {"quick": 0.18, "moderate": 0.56, "smooth": 0.26}
+TEMPO_EDGES_S = (1.05, 1.35)  # backswing + downswing: under = quick, over = smooth
+FLIGHT_CLASSES = ("low", "mid", "high")
+FLIGHT_PRIOR = {"low": 0.13, "mid": 0.64, "high": 0.23}
+ANSWER_RIGHT_P = 0.7
+# Weight of each part in the "what to add next" gain (head and shaft matter most to a golfer).
+GAIN_WEIGHT = {SpecPart.head: 2.0, SpecPart.shaft: 2.0, SpecPart.lie: 1.5, SpecPart.length: 1.0, SpecPart.grip: 1.0}
+NEXT_STEP_MIN_GAIN = 0.05
 
 
 def _tags(*groups) -> list[EvidenceSource]:
@@ -103,15 +115,101 @@ def _discrete(probs: dict, chosen) -> tuple[float, object | None, float]:
     return p, alt, q
 
 
-def run(req: FitRequest) -> FitState:
+def _answer_prior(classes: tuple[str, ...], asked: str | None, population: dict[str, float]) -> dict[str, float]:
+    """P(true class | answer). Wrong answers are one step off (lab error model)."""
+    if asked is None:
+        return dict(population)
+    i = classes.index(asked)
+    near = [c for j, c in enumerate(classes) if abs(j - i) == 1]
+    out = {c: 0.1 for c in classes}  # two steps off: rare, but a measurement must be able to win
+    out[asked] = ANSWER_RIGHT_P
+    for c in near:
+        out[c] = (1 - ANSWER_RIGHT_P) / len(near)
+    t = sum(out.values())
+    return {c: v / t for c, v in out.items()}
+
+
+def _posterior(prior: dict[str, float], like: dict[str, float] | None) -> dict[str, float]:
+    if like is None:
+        return prior
+    post = {c: prior[c] * like[c] for c in prior}
+    t = sum(post.values())
+    return {c: v / t for c, v in post.items()} if t > 0 else prior
+
+
+def _tempo_likelihood(back: float, down: float, sd: float) -> dict[str, float]:
+    est = Fu.Estimate(back + down, max(sd, 1e-3))
+    lo, hi = TEMPO_EDGES_S
+    return {
+        "quick": est.prob_between(-math.inf, lo),
+        "moderate": est.prob_between(lo, hi),
+        "smooth": est.prob_between(hi, math.inf),
+    }
+
+
+METHOD_LABEL = {
+    "population_prior": "Typical golfer (starting point)",
+    "questionnaire": "Your answer",
+    "glove": "Your glove size",
+    "launch_monitor": "Launch monitor speed",
+    "trackman": "TrackMan speed",
+    "radar": "Radar speed",
+    "launch_monitor_carry": "Launch monitor carry",
+    "carry_loft_corrected": "Your carry answer (corrected)",
+    "score_prior": "Your typical score",
+    "static_chart": "Height + wrist-to-floor chart",
+    "photo": "Photo measurement",
+    "video_pose": "Swing video (on device)",
+    "landing_angle": "Launch monitor landing angle",
+    "launch_spin": "Launch monitor launch + spin",
+}
+
+
+def _label(o) -> str:
+    m = o.method or ""
+    if m.startswith("ball_line"):
+        return "Ball-line test"
+    return METHOD_LABEL.get(m, m.replace("_", " ").capitalize() or o.source.value.capitalize())
+
+
+def _items(input_key: str, est: Fu.Estimate, fmt) -> list[EvidenceItem]:
+    out = [
+        EvidenceItem(
+            input=input_key, label=_label(o), value=fmt(o.value), source=o.source, method=o.method, weight=round(w, 3)
+        )
+        for o, w in est.items
+        if w >= 0.01
+    ]
+    return sorted(out, key=lambda i: -i.weight)
+
+
+def _cat_item(input_key: str, label: str, value: str, src: EvidenceSource, method: str | None) -> EvidenceItem:
+    return EvidenceItem(input=input_key, label=label, value=value, source=src, method=method, weight=1.0)
+
+
+def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
     a, m = req.answers, req.measurements
     fz = Fu.fuse(a, m)
 
     src = {k: (E.asked if getattr(a, k) is not None else E.default) for k in ("age", "sex", "hand", "flight")}
-    tempo, src["tempo"] = a.tempo or DEFAULTS["tempo"], E.asked if a.tempo else E.default
+    src["tempo"] = E.asked if a.tempo else E.default
+    # tempo: answer as prior, video timing as likelihood (a noisy clip can't overrule a clear answer)
+    tempo_like = None
     if m.backswing_s is not None and m.downswing_s is not None:
-        tot = m.backswing_s.value + m.downswing_s.value
-        tempo, src["tempo"] = ("quick" if tot < 1.05 else "smooth" if tot > 1.35 else "moderate"), E.measured
+        tempo_like = _tempo_likelihood(
+            m.backswing_s.value, m.downswing_s.value, math.hypot(m.backswing_s.sd, m.downswing_s.sd)
+        )
+    tempo_p = _posterior(_answer_prior(TEMPO_CLASSES, a.tempo, TEMPO_PRIOR), tempo_like)
+    tempo = max(TEMPO_CLASSES, key=lambda c: tempo_p[c])
+    if tempo_like is not None:
+        src["tempo"] = E.measured
+    # flight: answer as prior, launch-monitor landing angle (or launch + spin) as likelihood
+    flight_est = Fu.flight_need(m, a.own_7i_loft_deg, fz.speed.mean)
+    flight_like = Fu.flight_probs(flight_est) if flight_est is not None else None
+    flight_p = _posterior(_answer_prior(FLIGHT_CLASSES, a.flight, FLIGHT_PRIOR), flight_like)
+    flight = max(FLIGHT_CLASSES, key=lambda c: flight_p[c])
+    if flight_like is not None:
+        src["flight"] = E.measured
     src["score"] = E.asked if a.score_bucket is not None else E.default
 
     # glove: measured hand length wins; else the golfer's own glove answer (no shrinkage); else default
@@ -131,7 +229,7 @@ def run(req: FitRequest) -> FitState:
         score_bucket=score_bucket,
         swing_bucket=swing_bucket,
         characteristics=list(a.characteristics),
-        flight=a.flight or DEFAULTS["flight"],
+        flight=flight,
         tempo=tempo,
         height_cm=fz.height.mean,
         wrist_to_floor_cm=fz.w2f.mean,
@@ -188,6 +286,12 @@ def run(req: FitRequest) -> FitState:
             unit="probability",
             note_code="CLOSE_CALL",
         )
+    speed_items = _items("speed_7i_mph", fz.speed, lambda v: f"{v:.0f} mph")
+    score_item = (
+        [_cat_item("score_bucket", "Your typical score", h_score_label(a.score_bucket), E.asked, "questionnaire")]
+        if a.score_bucket is not None
+        else []
+    )
     parts[SpecPart.head] = PartState(
         part=SpecPart.head,
         value=head_slug,
@@ -196,6 +300,7 @@ def run(req: FitRequest) -> FitState:
         evidence=_tags(fz.speed.sources, src["score"]),
         reasons=reasons,
         close_call=cc,
+        inputs=score_item + speed_items,
     )
 
     # ---------------------------------------------------------------- shaft (flex from speed bucket)
@@ -218,10 +323,20 @@ def run(req: FitRequest) -> FitState:
             params={"model": sh["model"], "flight": base.flight, "tempo": base.tempo},
         ),
     ]
+    top_speed = max(fz.speed.items, key=lambda t: t[1])[0]
     if E.measured in fz.speed.sources:
         reasons.append(Reason(code="SPEED_MEASURED", params={"speed_range": SPEED_RANGE[swing_bucket]}))
-    elif E.estimated in fz.speed.sources:
+    elif top_speed.method in ("carry_loft_corrected", "launch_monitor_carry"):
         reasons.append(Reason(code="SPEED_FROM_CARRY"))
+    elif top_speed.method == "score_prior":
+        reasons.append(Reason(code="SPEED_FROM_SCORE"))
+    if flight_est is not None:
+        reasons.append(Reason(code="FLIGHT_FROM_LAUNCH", params={"flight": flight}))
+    if tempo_like is not None:
+        if max(TEMPO_CLASSES, key=lambda c: tempo_like[c]) == tempo:
+            reasons.append(Reason(code="TEMPO_FROM_VIDEO", params={"tempo": tempo}))
+        else:
+            reasons.append(Reason(code="TEMPO_VIDEO_UNCLEAR", params={"tempo": tempo}))
     cc = None
     neighbours = [b for b in (swing_bucket - 1, swing_bucket + 1) if 1 <= b <= 5]
     nb = max(neighbours, key=lambda b: speed_p[b - 1])
@@ -235,7 +350,25 @@ def run(req: FitRequest) -> FitState:
                 unit="mph",
                 note_code="CLOSE_CALL",
             )
-    cat_conf = min(CATEGORICAL_CONF[src[k]] for k in ("flight", "tempo"))
+    cat_conf = min(flight_p[flight], tempo_p[tempo])
+    shaft_inputs = list(speed_items)
+    if flight_est is not None:
+        o = flight_est.items[0][0]
+        shaft_inputs.append(_cat_item("flight", _label(o), f"{flight} (lands ~{o.value:.0f}°)", E.measured, o.method))
+    elif a.flight is not None:
+        shaft_inputs.append(_cat_item("flight", "Your ball flight answer", flight, E.asked, "questionnaire"))
+    if tempo_like is not None:
+        shaft_inputs.append(
+            _cat_item(
+                "tempo",
+                "Swing video (on device)",
+                f"{tempo} ({m.backswing_s.value + m.downswing_s.value:.2f} s)",
+                src["tempo"],
+                "video_pose",
+            )
+        )
+    if a.tempo is not None:
+        shaft_inputs.append(_cat_item("tempo", "Your tempo answer", a.tempo, E.asked, "questionnaire"))
     parts[SpecPart.shaft] = PartState(
         part=SpecPart.shaft,
         value=sh["slug"],
@@ -245,6 +378,7 @@ def run(req: FitRequest) -> FitState:
         evidence=_tags(fz.speed.sources, src["flight"], src["tempo"], src["sex"], src["age"]),
         reasons=reasons,
         close_call=cc,
+        inputs=shaft_inputs,
     )
 
     # ---------------------------------------------------------------- length (height bins)
@@ -269,6 +403,7 @@ def run(req: FitRequest) -> FitState:
         confidence=round(p, 3),
         evidence=_tags(fz.height.sources),
         reasons=reasons,
+        inputs=_items("height_cm", fz.height, lambda v: f"{v:.0f} cm"),
         close_call=CloseCall(alternative=_signed(alt, " in"), margin=round(p - q, 3), unit="probability")
         if alt is not None and q >= CLOSE_CALL_P
         else None,
@@ -283,7 +418,13 @@ def run(req: FitRequest) -> FitState:
         for d in C.load()["lie_options_deg"]
     }
     p, alt, q = _discrete(liep, lie)
-    code = "LIE_FROM_SHOTS" if fz.lie_measured else "LIE_FROM_STATIC"
+    code = (
+        "LIE_FROM_BALL_LINE"
+        if m.ball_line_tilt_deg is not None and m.lie_need_deg is None
+        else "LIE_FROM_SHOTS"
+        if fz.lie_measured
+        else "LIE_FROM_STATIC"
+    )
     lie_rng = [d for d, pr in liep.items() if pr >= 0.1] or [lie]
     parts[SpecPart.lie] = PartState(
         part=SpecPart.lie,
@@ -294,6 +435,7 @@ def run(req: FitRequest) -> FitState:
         evidence=_tags(lie_est.sources),
         reasons=[Reason(code=code, params={"lie": _signed(lie, "°")})]
         + ([] if fz.lie_measured else [Reason(code="NEED_MORE_EVIDENCE", params={"next_step": "A ball-line test"})]),
+        inputs=_items("lie_need_deg", lie_est, lambda v: f"{v:+.1f}°"),
         close_call=CloseCall(alternative=_signed(alt, "°"), margin=round(p - q, 3), unit="probability")
         if alt is not None and q >= CLOSE_CALL_P
         else None,
@@ -320,6 +462,7 @@ def run(req: FitRequest) -> FitState:
         confidence=round(p, 3),
         evidence=_tags(fz.hand.sources),
         reasons=[r],
+        inputs=_items("hand_length_cm", fz.hand, lambda v: f"{v:.1f} cm"),
         close_call=CloseCall(alternative=alt.capitalize(), margin=round(p - q, 3), unit="probability")
         if alt is not None and q >= CLOSE_CALL_P
         else None,
@@ -341,10 +484,17 @@ def run(req: FitRequest) -> FitState:
 
     # ---------------------------------------------------------------- purchase + advice
     advice = stock_advice(head_slug, sh, length, lie, grip, purchase, fz, base.handedness)
+    # custom only because of a part where standard is nearly as likely -> say stock is worth a look
+    near_std = {SpecPart.length: lprobs.get(0.0, 0.0), SpecPart.lie: liep.get(0, 0.0)}
+    advice.close_call_parts = [b.part for b in advice.blockers if near_std.get(b.part, 0.0) >= CLOSE_CALL_P]
     if purchase == "stock":
         reasons = [Reason(code="PURCHASE_STOCK")]
     else:
         reasons = [Reason(code="PURCHASE_CUSTOM", params={"why": ", ".join(b.part.value for b in advice.blockers)})]
+        if advice.close_call_parts and len(advice.close_call_parts) == len(advice.blockers):
+            reasons.append(
+                Reason(code="STOCK_CLOSE_CALL", params={"parts": ", ".join(x.value for x in advice.close_call_parts)})
+            )
     deps = [parts[k] for k in (SpecPart.shaft, SpecPart.length, SpecPart.lie, SpecPart.grip)]
     parts[SpecPart.purchase] = PartState(
         part=SpecPart.purchase,
@@ -363,7 +513,7 @@ def run(req: FitRequest) -> FitState:
         "hand_length_cm": fz.hand,
         "lie_need_deg": lie_est,
     }
-    return FitState(
+    state = FitState(
         step=req.step,
         parts=parts,
         head_options=head_options,
@@ -374,6 +524,87 @@ def run(req: FitRequest) -> FitState:
         stock_advice=advice,
         estimates={k: Range(low=round(v.mean - v.sd, 2), high=round(v.mean + v.sd, 2)) for k, v in est.items()},
     )
+    if plan_next:
+        state.next_steps = next_steps(req, state, fz, tempo)
+    return state
+
+
+def h_score_label(bucket: int) -> str:
+    return {1: "under 71", 2: "71-77", 3: "78-84", 4: "85-92", 5: "over 92"}[bucket]
+
+
+def next_steps(req: FitRequest, state: FitState, fz: Fu.Fused, tempo: str) -> list[NextStep]:
+    """Rank missing inputs by expected confidence gain: rerun the engine as if each were measured at today's
+    best estimate (so the value stays, only the uncertainty shrinks)."""
+    from ..schema import Observation
+
+    a, m = req.answers, req.measurements
+    meas = lambda v, sd, method: Observation(value=v, sd=sd, source=E.measured, method=method)  # noqa: E731
+    cands: list[tuple[str, str, dict, dict]] = []
+    if m.speed_7i_mph is None:
+        upd = {"speed_7i_mph": meas(min(max(fz.speed.mean, 31), 129), 1.5, "launch_monitor")}
+        if m.landing_deg is None:
+            flight_center = {"low": 47.0, "mid": 40.0, "high": 32.0}[req.answers.flight or "mid"]
+            upd["landing_deg"] = meas(flight_center, 1.0, "landing_angle")
+        cands.append(("launch_monitor", "NEXT_LAUNCH_MONITOR", upd, {}))
+    if m.lie_need_deg is None and m.ball_line_tilt_deg is None:
+        tilt = (fz.lie.mean - Fu.BALL_LINE_B) / Fu.BALL_LINE_K
+        cands.append(
+            (
+                "ball_line_test",
+                "NEXT_BALL_LINE",
+                {"ball_line_tilt_deg": meas(max(-24, min(24, tilt)), 0.9, "ball_line_tap_n5")},
+                {},
+            )
+        )
+    if m.backswing_s is None:
+        tot = {"quick": 0.95, "moderate": 1.2, "smooth": 1.47}[tempo]
+        cands.append(
+            (
+                "swing_video",
+                "NEXT_SWING_VIDEO",
+                {
+                    "backswing_s": meas(tot * 0.76, 0.02, "video_pose"),
+                    "downswing_s": meas(tot * 0.24, 0.02, "video_pose"),
+                },
+                {},
+            )
+        )
+    if m.hand_length_cm is None and a.glove is None:
+        cands.append(("glove_size", "NEXT_GLOVE", {}, {"glove": Fu.glove_from_hand(fz.hand.mean)}))
+    if a.height_cm is None and m.height_cm is None:
+        cands.append(("height", "NEXT_HEIGHT", {}, {"height_cm": round(fz.height.mean, 1)}))
+    if a.carry_7i_yd is None and a.speed_7i_mph is None and m.speed_7i_mph is None and m.carry_7i_yd is None:
+        cands.append(
+            (
+                "carry",
+                "NEXT_CARRY",
+                {},
+                {"carry_7i_yd": round(fz.speed.mean * Fu.YD_PER_MPH_AT_REF + Fu.CARRY_OVER_REPORT_YD)},
+            )
+        )
+    out = []
+    for key, code, mupd, aupd in cands:
+        try:
+            r2 = req.model_copy(
+                update={
+                    "measurements": m.model_copy(update=mupd),
+                    "answers": a.model_copy(update=aupd),
+                    "previous": None,
+                }
+            )
+            s2 = run(r2, plan_next=False)
+        except Exception:  # a candidate must never break the fit
+            continue
+        gains = {
+            part: w * max(0.0, s2.parts[part].confidence - state.parts[part].confidence)
+            for part, w in GAIN_WEIGHT.items()
+        }
+        gain = sum(gains.values())
+        if gain >= NEXT_STEP_MIN_GAIN:
+            parts = [p for p, g in sorted(gains.items(), key=lambda t: -t[1]) if g >= 0.02]
+            out.append(NextStep(input=key, parts=parts, gain=round(gain, 3), code=code))
+    return sorted(out, key=lambda n: -n.gain)[:3]
 
 
 def stock_advice(

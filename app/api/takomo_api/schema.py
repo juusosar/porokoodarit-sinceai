@@ -91,6 +91,14 @@ class Measurements(_Model):
     backswing_s: Observation | None = None
     downswing_s: Observation | None = None
     lie_need_deg: Observation | None = None
+    # Launch monitor (own 7-iron, mean of the session). Carry here is measured, so no over-report correction.
+    carry_7i_yd: Observation | None = None
+    launch_deg: Observation | None = None
+    spin_rpm: Observation | None = None
+    landing_deg: Observation | None = None
+    # Ball-line lie test: mean tilt of the transferred line, + = leans toward the toe (club too upright).
+    # method carries the shot count, e.g. "ball_line_tap_n5". The engine turns it into a lie need.
+    ball_line_tilt_deg: Observation | None = None
 
     @model_validator(mode="after")
     def _plausible(self) -> Measurements:
@@ -110,6 +118,11 @@ MEASUREMENT_BOUNDS = {
     "backswing_s": (0.3, 3.0),
     "downswing_s": (0.1, 1.0),
     "lie_need_deg": (-10, 10),
+    "carry_7i_yd": (40, 260),
+    "launch_deg": (5, 40),
+    "spin_rpm": (1000, 12000),
+    "landing_deg": (15, 65),
+    "ball_line_tilt_deg": (-25, 25),
 }
 
 
@@ -139,6 +152,26 @@ class CloseCall(_Model):
     note_code: str | None = None
 
 
+class EvidenceItem(_Model):
+    """One input behind a part, with its share of the fused estimate (the "Why" drawer)."""
+
+    input: str = Field(description="Input key, e.g. 'speed_7i_mph', 'flight', 'tempo'")
+    label: str = Field(description="Display text, e.g. 'Launch monitor speed'")
+    value: str = Field(description="Display value with unit, e.g. '82 mph'")
+    source: EvidenceSource
+    method: str | None = None
+    weight: float = Field(ge=0, le=1, description="Share of the estimate (inverse-variance weight); 1 = decided it")
+
+
+class NextStep(_Model):
+    """A missing or weak input, ranked by how much it would raise confidence."""
+
+    input: str = Field(description="What to add, e.g. 'ball_line_test', 'launch_monitor'")
+    parts: list[SpecPart] = Field(default_factory=list, description="Parts it would firm up")
+    gain: float = Field(ge=0, description="Expected confidence gain, weighted sum over parts")
+    code: str = Field(description="Reason code for the prompt line")
+
+
 class PartState(_Model):
     part: SpecPart
     value: str | float | None = Field(description="Chosen value; None = not enough evidence yet")
@@ -148,6 +181,7 @@ class PartState(_Model):
     evidence: list[EvidenceSource] = Field(default_factory=list)
     reasons: list[Reason] = Field(default_factory=list)
     close_call: CloseCall | None = None
+    inputs: list[EvidenceItem] = Field(default_factory=list, description="Evidence chain behind the value")
 
 
 class HeadOption(_Model):
@@ -181,6 +215,9 @@ class StockAdvice(_Model):
         default_factory=dict, description="Nearest stock build (labels) if the golfer prefers stock"
     )
     one_tweak_from_stock: bool = False
+    close_call_parts: list[SpecPart] = Field(
+        default_factory=list, description="Custom parts where standard is nearly as likely (stock worth considering)"
+    )
 
 
 class FitState(_Model):
@@ -195,6 +232,7 @@ class FitState(_Model):
     estimates: dict[str, Range] = Field(
         default_factory=dict, description="Fused input estimates, mean +- 1 SD (e.g. speed_7i_mph)"
     )
+    next_steps: list[NextStep] = Field(default_factory=list, description="Best inputs to add next, highest gain first")
 
 
 FitRequest.model_rebuild()

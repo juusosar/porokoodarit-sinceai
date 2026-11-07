@@ -110,7 +110,9 @@ def test_fusion_pulls_conflicting_sources_together():
 
 
 def test_flex_close_call_near_bucket_edge():
-    s = F.run(FitRequest(step="profile", answers=full_answers(speed_7i_mph=82)))  # ~80 after bias -> on the edge
+    s = F.run(
+        FitRequest(step="profile", answers=full_answers(speed_7i_mph=82))
+    )  # ~78 after bias + score prior: near the 80 edge
     cc = s.parts["shaft"].close_call
     assert cc is not None and cc.unit == "mph" and cc.margin < 3
 
