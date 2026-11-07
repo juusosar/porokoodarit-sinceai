@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from .base import LLMError, LLMRequest
+
+log = logging.getLogger(__name__)
+
+# AI Studio "-latest" aliases do not exist on Vertex AI (404). Map them to stable Vertex names.
+_VERTEX_ALIASES = {
+    "gemini-flash-latest": "gemini-2.5-flash",
+    "gemini-flash-lite-latest": "gemini-2.5-flash-lite",
+    "gemini-pro-latest": "gemini-2.5-pro",
+}
 
 
 class GeminiProvider:
@@ -24,6 +34,8 @@ class GeminiProvider:
         self._project = project
         self._location = location
         self._client = None
+        if vertex and not project:
+            log.warning("TAKOMO_GEMINI_VERTEX is on but TAKOMO_GCP_PROJECT is empty: using templates")
 
     def available(self) -> bool:
         return bool(self._key) or (self._vertex and bool(self._project))
@@ -44,7 +56,7 @@ class GeminiProvider:
 
         try:
             resp = self._get().models.generate_content(
-                model=req.model,
+                model=_VERTEX_ALIASES.get(req.model, req.model) if self._vertex else req.model,
                 contents=req.user,
                 config=types.GenerateContentConfig(
                     system_instruction=req.system,
