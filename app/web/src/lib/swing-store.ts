@@ -7,6 +7,8 @@ export const swingRecordSchema = z.object({
   filename: z.string().max(200),
   size: z.number().int().nonnegative(),
   encodedFps: z.number().positive().max(1000).nullable(),
+  /** Playback slowdown the golfer picked (1 = normal speed, 4 / 8 = slow motion). */
+  slowMo: z.number().min(1).max(16).optional(),
   /** Pose-based tempo (MediaPipe in the browser); null when the body wasn't readable. */
   tempo: z
     .object({

@@ -67,6 +67,8 @@ export function toFitRequest(
   answers.score_bucket = scoreBucket(v("score"));
   const carry = unsure(v("carry")) ? null : num(v("carry"));
   if (carry !== null && carry >= 40 && carry <= 260) answers.carry_7i_yd = carry;
+  const loft = unsure(v("loft")) ? null : num(v("loft"));
+  if (loft !== null && loft > 15 && loft < 45) answers.own_7i_loft_deg = loft;
   const flight = v("flight")?.toLowerCase();
   if (flight === "low" || flight === "high") answers.flight = flight;
   else if (flight === "medium" || flight === "mid") answers.flight = "mid";

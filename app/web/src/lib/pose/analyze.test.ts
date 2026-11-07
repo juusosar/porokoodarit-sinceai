@@ -1,5 +1,5 @@
 import fixtures from "./__fixtures__/wrist_y.json";
-import { analyzeFrames, wristSeries, type PoseFrame } from "./analyze";
+import { analyzeFrames, plausibleTempo, wristSeries, type PoseFrame } from "./analyze";
 
 function framesFromY(y: number[], fps: number, missingEvery = 0): PoseFrame[] {
   return y.map((v, i) => {
@@ -23,6 +23,19 @@ describe("analyzeFrames", () => {
   it("fills short pose gaps", () => {
     const y = wristSeries(framesFromY(f.y, f.fps, 10));
     expect(y.every((v) => !Number.isNaN(v))).toBe(true);
+  });
+
+  it("slow-motion file: tempo in real seconds when the speed is given (POR-30)", () => {
+    const normal = analyzeFrames(framesFromY(f.y, f.fps), f.fps).tempo!;
+    // 4x slow-mo: same swing stretched over 4x the media time, sampled at the same media rate
+    const stretched = f.y.flatMap((v) => [v, v, v, v]);
+    const read = analyzeFrames(framesFromY(stretched, f.fps), f.fps, 4).tempo!;
+    expect(read.backswingS).toBeCloseTo(normal.backswingS, 1);
+    expect(read.downswingS).toBeCloseTo(normal.downswingS, 1);
+    const naive = analyzeFrames(framesFromY(stretched, f.fps), f.fps).tempo!;
+    expect(naive.backswingS).toBeGreaterThan(2.5 * normal.backswingS);
+    expect(plausibleTempo(normal)).toBe(true);
+    expect(plausibleTempo(naive)).toBe(false);
   });
 
   it("refuses when the body is mostly not visible", () => {
