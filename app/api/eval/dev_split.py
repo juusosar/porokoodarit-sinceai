@@ -51,7 +51,8 @@ SD = {
     "speed_trackman": 1.5,  # same as the web's launch-monitor entry
     "speed_radar": 2.0,
     "lie_toe": 0.5,  # mean of several strikes on standard-lie test clubs
-    "lie_tilt": 2.0,  # own-club lie unknown + face angle bias
+    "lie_tilt": 0.75,  # SD of the 5-shot mean tilt (lab: 1.65 per shot); the engine adds its own model SD
+    "landing_tm": 0.5,  # TrackMan session mean landing angle
 }
 TEMPO_EXTRA_SD_S = 0.012  # video tempo: +-1 frame + 12 ms (same as web Swing.tsx)
 
@@ -76,6 +77,7 @@ class Split:
         self.labels = pd.read_csv(d / "labels.csv")
         own = self.shots[self.shots.club == "own_7i"]
         self.tm = own[own.session == "trackman_fitting"].groupby("golfer_id").club_speed_mph.median()
+        self.tm_landing = own[own.session == "trackman_fitting"].groupby("golfer_id").landing_angle_deg.mean()
         self.radar = own[own.session == "home_radar"].groupby("golfer_id").club_speed_mph.median()
         tk = self.shots[self.shots.club.str.startswith("takomo_")]
         self.toe = tk.groupby("golfer_id").impact_toe_up_deg.mean()
@@ -127,10 +129,12 @@ class Split:
                 m["speed_7i_mph"] = ob(
                     sum(x * wi for (x, _), wi in zip(sp, w, strict=True)) / sum(w), math.sqrt(1 / sum(w))
                 )
+            if gid in self.tm_landing.index:
+                m["landing_deg"] = ob(self.tm_landing.loc[gid], SD["landing_tm"])
             if gid in self.toe.index:
                 m["lie_need_deg"] = ob(-self.toe.loc[gid], SD["lie_toe"])
-            elif gid in self.tilt.index:
-                m["lie_need_deg"] = ob(-self.tilt.loc[gid], SD["lie_tilt"])
+            elif gid in self.tilt.index:  # raw tilt: the engine owns the tilt -> lie conversion
+                m["ball_line_tilt_deg"] = ob(self.tilt.loc[gid], SD["lie_tilt"])
         return FitRequest(step="eval", answers=a, measurements=Measurements(**m))
 
     def ui_request(self, r, launch_monitor: bool) -> FitRequest:
@@ -166,7 +170,7 @@ class Split:
     def engine(self, evidence: bool | str) -> pd.DataFrame:
         rows = []
         for _, r in self.q.iterrows():
-            P = F.run(self.request(r, evidence)).parts
+            P = F.run(self.request(r, evidence), plan_next=False).parts
             rows.append(
                 {
                     "golfer_id": r.golfer_id,

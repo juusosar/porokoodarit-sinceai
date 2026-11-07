@@ -301,6 +301,58 @@
       "title": "CloseCall",
       "type": "object"
     },
+    "EvidenceItem": {
+      "additionalProperties": false,
+      "description": "One input behind a part, with its share of the fused estimate (the \"Why\" drawer).",
+      "properties": {
+        "input": {
+          "description": "Input key, e.g. 'speed_7i_mph', 'flight', 'tempo'",
+          "title": "Input",
+          "type": "string"
+        },
+        "label": {
+          "description": "Display text, e.g. 'Launch monitor speed'",
+          "title": "Label",
+          "type": "string"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method"
+        },
+        "source": {
+          "$ref": "#/$defs/EvidenceSource"
+        },
+        "value": {
+          "description": "Display value with unit, e.g. '82 mph'",
+          "title": "Value",
+          "type": "string"
+        },
+        "weight": {
+          "description": "Share of the estimate (inverse-variance weight); 1 = decided it",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "input",
+        "label",
+        "value",
+        "source",
+        "weight"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
     "EvidenceSource": {
       "enum": [
         "asked",
@@ -379,6 +431,14 @@
             "$ref": "#/$defs/HeadOption"
           },
           "title": "Head Options",
+          "type": "array"
+        },
+        "next_steps": {
+          "description": "Best inputs to add next, highest gain first",
+          "items": {
+            "$ref": "#/$defs/NextStep"
+          },
+          "title": "Next Steps",
           "type": "array"
         },
         "parts": {
@@ -476,6 +536,28 @@
           ],
           "default": null
         },
+        "ball_line_tilt_deg": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "carry_7i_yd": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "downswing_s": {
           "anyOf": [
             {
@@ -509,6 +591,28 @@
           ],
           "default": null
         },
+        "landing_deg": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "launch_deg": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "lie_need_deg": {
           "anyOf": [
             {
@@ -521,6 +625,17 @@
           "default": null
         },
         "speed_7i_mph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "spin_rpm": {
           "anyOf": [
             {
               "$ref": "#/$defs/Observation"
@@ -544,6 +659,43 @@
         }
       },
       "title": "Measurements",
+      "type": "object"
+    },
+    "NextStep": {
+      "additionalProperties": false,
+      "description": "A missing or weak input, ranked by how much it would raise confidence.",
+      "properties": {
+        "code": {
+          "description": "Reason code for the prompt line",
+          "title": "Code",
+          "type": "string"
+        },
+        "gain": {
+          "description": "Expected confidence gain, weighted sum over parts",
+          "minimum": 0,
+          "title": "Gain",
+          "type": "number"
+        },
+        "input": {
+          "description": "What to add, e.g. 'ball_line_test', 'launch_monitor'",
+          "title": "Input",
+          "type": "string"
+        },
+        "parts": {
+          "description": "Parts it would firm up",
+          "items": {
+            "$ref": "#/$defs/SpecPart"
+          },
+          "title": "Parts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "input",
+        "gain",
+        "code"
+      ],
+      "title": "NextStep",
       "type": "object"
     },
     "Observation": {
@@ -609,6 +761,14 @@
             "$ref": "#/$defs/EvidenceSource"
           },
           "title": "Evidence",
+          "type": "array"
+        },
+        "inputs": {
+          "description": "Evidence chain behind the value",
+          "items": {
+            "$ref": "#/$defs/EvidenceItem"
+          },
+          "title": "Inputs",
           "type": "array"
         },
         "label": {
@@ -737,6 +897,14 @@
             "$ref": "#/$defs/StockBlocker"
           },
           "title": "Blockers",
+          "type": "array"
+        },
+        "close_call_parts": {
+          "description": "Custom parts where standard is nearly as likely (stock worth considering)",
+          "items": {
+            "$ref": "#/$defs/SpecPart"
+          },
+          "title": "Close Call Parts",
           "type": "array"
         },
         "one_tweak_from_stock": {

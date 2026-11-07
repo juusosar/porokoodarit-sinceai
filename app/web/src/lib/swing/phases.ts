@@ -18,7 +18,15 @@ export type SwingEvent = (typeof EVENTS)[number];
 /** Per frame mean of both wrists; NaN when not visible. */
 export type WristTrack = { x: number[]; y: number[] };
 
-export type Phases = { fps: number; frames: Record<SwingEvent, number> };
+/** Hands count as "still" below this share of their peak backswing rise speed. */
+export const TAKEAWAY_SPEED_SHARE = 0.1;
+
+/**
+ * frames: main's events, unchanged. takeaway: start of the backswing for tempo. main's Address is the lowest hand
+ * point up to 4 s before the top, which can be a waggle or set-up well before the club moves, so a backswing timed
+ * from it runs long (known issue). takeaway is where the hands start rising (takeawayFrame).
+ */
+export type Phases = { fps: number; frames: Record<SwingEvent, number>; takeaway: number };
 
 export function detectPhases({ x, y }: WristTrack, fps: number): Phases {
   const n = y.length;
@@ -55,7 +63,20 @@ export function detectPhases({ x, y }: WristTrack, fps: number): Phases {
   ];
   for (let i = 1; i < idx.length; i++) if (idx[i] <= idx[i - 1]) idx[i] = idx[i - 1] + 1;
   const frames = Object.fromEntries(EVENTS.map((e, i) => [e, Math.min(idx[i], n - 1)])) as Record<SwingEvent, number>;
-  return { fps, frames };
+  return { fps, frames, takeaway: takeawayFrame(sy, frames.Address, frames.Top) };
+}
+
+/** Walk back from the fastest backswing frame while the hands are still rising; the takeaway is where they slow to near rest. */
+export function takeawayFrame(sy: number[], address: number, top: number): number {
+  if (top - address < 3) return address;
+  const rise = (i: number) => sy[i] - sy[i + 1]; // y down: > 0 while the hands go up
+  let iPeak = address;
+  for (let i = address; i < top; i++) if (rise(i) > rise(iPeak)) iPeak = i;
+  const peak = rise(iPeak);
+  if (!(peak > 0)) return address;
+  // start at the fastest rise: the hands also slow down near the top, which is not the takeaway
+  for (let i = iPeak; i > address; i--) if (rise(i) < TAKEAWAY_SPEED_SHARE * peak) return i + 1;
+  return address;
 }
 
 export type Tempo = { backswingS: number; downswingS: number; ratio: number };
