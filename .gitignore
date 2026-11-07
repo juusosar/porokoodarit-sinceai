@@ -22,3 +22,5 @@ app/api/lab_data/
 app/web/public/mediapipe/
 # Deploy env files (secrets)
 app/deploy/*.env.yaml
+# Docker
+app/docker-compose.override.yml
