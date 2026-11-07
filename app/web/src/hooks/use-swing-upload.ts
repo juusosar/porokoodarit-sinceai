@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getFittingToken } from '@/lib/fitting-session';
 import { inspectVideo } from '@/lib/video-metadata';
-import { analyzeVideo, type SwingAnalysis } from '@/lib/pose/analyze';
+import { analyzeVideo, PLAUSIBLE, plausibleTempo, type SwingAnalysis } from '@/lib/pose/analyze';
 import { getPoseLandmarker } from '@/lib/pose/landmarker';
 import { deleteSwing, readSwing, saveSwing, swingRecordSchema, type SwingRecord } from '@/lib/swing-store';
 
@@ -27,6 +27,7 @@ export function useSwingUpload(enabled: boolean) {
   const [busy, setBusy] = useState(false);
   const [record, setRecord] = useState<SwingRecord | null>(null);
   const [analysis, setAnalysis] = useState<SwingAnalysis | null>(null);
+  const [slowMo, setSlowMo] = useState(1);
   const localUrl = useRef<string | null>(null);
   const ctrl = useRef<AbortController | null>(null);
   const restore = useCallback(async () => {
@@ -67,20 +68,24 @@ export function useSwingUpload(enabled: boolean) {
     setBusy(true); setError(''); setProgress(0); setPhase('analyzing');
     try {
       await loaded;
-      const result = await analyzeVideo(video, { onProgress: share => setProgress(Math.round(share * 100)), signal: c.signal });
+      const result = await analyzeVideo(video, { slowMo, onProgress: share => setProgress(Math.round(share * 100)), signal: c.signal });
       if (c.signal.aborted) return;
       setAnalysis(result);
       const t = result.tempo;
       const candidate = t ? { backswingS: t.backswingS, downswingS: t.downswingS, ratio: t.ratio, sd: t.frameUncertaintyS + TEMPO_EXTRA_SD_S } : null;
       // Pose can misread a swing (e.g. impact 1 frame after top): implausible timing is dropped, not saved.
-      const plausible = !!candidate && swingRecordSchema.shape.tempo.safeParse(candidate).success;
+      const plausible = !!candidate && plausibleTempo(candidate) && swingRecordSchema.shape.tempo.safeParse(candidate).success;
+      // Too slow for a real swing at normal speed: most likely a slow-motion file read as normal speed (POR-30).
+      const looksSlowMo = !!candidate && slowMo === 1 && (candidate.backswingS > PLAUSIBLE.backswingS[1] || candidate.downswingS > PLAUSIBLE.downswingS[1]);
       const saved: SwingRecord = {
-        filename: file.name, size: file.size, encodedFps: timing?.encodedFps ?? null, analyzedAt: new Date().toISOString(),
+        filename: file.name, size: file.size, encodedFps: timing?.encodedFps ?? null, slowMo, analyzedAt: new Date().toISOString(),
         tempo: plausible ? candidate : null,
       };
       saveSwing(getFittingToken(), saved);
       setRecord(saved); setProgress(100); setPhase('saved');
-      if (!saved.tempo) setError(`Couldn’t read your swing timing${result.error ? ` (${result.error})` : candidate ? ' (timing looked off)' : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
+      if (!saved.tempo) setError(looksSlowMo
+        ? 'This swing looks like slow motion. Pick the slow-motion speed above and read it again, or continue: we’ll use your answers.'
+        : `Couldn’t read your swing timing${result.error ? ` (${result.error})` : candidate ? ' (timing looked off)' : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
     } catch (e) {
       if (c.signal.aborted || (e as Error).name === 'AbortError') { setPhase('preview'); return; }
       setError(e instanceof Error && !e.message.startsWith('[') ? e.message : 'Could not read your video. Try again.'); setPhase('preview');
@@ -92,5 +97,5 @@ export function useSwingUpload(enabled: boolean) {
     if (localUrl.current) { URL.revokeObjectURL(localUrl.current); localUrl.current = null; }
     setUrl(null); setFile(null); setTiming(null); setRecord(null); setAnalysis(null); setError(''); setPhase('selection');
   }
-  return { phase, file, url, timing, name, size, progress, error, busy, record, analysis, select, submit, discard, restore, cancel: () => ctrl.current?.abort(), failPlayback: () => setError('Your browser cannot play this video. Choose another video or export an MP4 original.') };
+  return { phase, file, url, timing, name, size, progress, error, busy, record, analysis, slowMo, setSlowMo, select, submit, discard, restore, cancel: () => ctrl.current?.abort(), failPlayback: () => setError('Your browser cannot play this video. Choose another video or export an MP4 original.') };
 }

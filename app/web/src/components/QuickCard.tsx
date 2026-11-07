@@ -5,7 +5,7 @@ import { QuestionInfo } from '@/components/QuestionInfo';
 
 export type Q =
   | { key: string; label: string; type: "choice"; options: string[]; initial: string }
-  | { key: string; label: string; type: "range"; min: number; max: number; step: number; unit: string; initial: number; unknown?: boolean; plusMax?: boolean };
+  | { key: string; label: string; type: "range"; min: number; max: number; step: number; unit: string; initial: number; unknown?: boolean; plusMax?: boolean; optional?: boolean };
 
 export type CardDef = { id: number; title: string; questions: Q[] };
 
@@ -14,8 +14,8 @@ export const CARDS: CardDef[] = [
     id: 1,
     title: "The basics",
     questions: [
-      { key: "hand", label: "Hand", type: "choice", options: ["Right", "Left"], initial: "Right" },
-      { key: "sex", label: "Sex", type: "choice", options: ["Male", "Female", "Skip"], initial: "Male" },
+      { key: "hand", label: "Hand", type: "choice", options: ["Right", "Left"], initial: "" },
+      { key: "sex", label: "Sex", type: "choice", options: ["Male", "Female", "Skip"], initial: "" },
       { key: "rounds", label: "Rounds / year", type: "range", min: 0, max: 100, step: 5, unit: "", initial: 20, plusMax: true },
     ],
   },
@@ -23,10 +23,11 @@ export const CARDS: CardDef[] = [
     id: 2,
     title: "Your game",
     questions: [
-      { key: "score", label: "Typical 18-hole score", type: "choice", options: ["<71", "71–77", "78–84", "85–92", ">92"], initial: "85–92" },
+      { key: "score", label: "Typical 18-hole score", type: "choice", options: ["<71", "71–77", "78–84", "85–92", ">92"], initial: "" },
       { key: "carry", label: "Average 7-iron carry", type: "range", min: 80, max: 200, step: 5, unit: " yd", initial: 140, unknown: true },
+      { key: "loft", label: "Your current 7-iron loft, if you know it", type: "range", min: 26, max: 36, step: 0.5, unit: "°", initial: 31, unknown: true, optional: true },
       { key: "development", label: "Over the next few years, where do you see your game heading?", type: "choice", options: ["Better golf is on the menu", "Same game, same swagger", "My best golf might be behind me"], initial: "" },
-      { key: "flight", label: "Ball flight", type: "choice", options: ["Low", "Medium", "High"], initial: "Medium" },
+      { key: "flight", label: "Ball flight", type: "choice", options: ["Low", "Medium", "High", "Not sure"], initial: "" },
     ],
   },
   {
@@ -35,21 +36,21 @@ export const CARDS: CardDef[] = [
     questions: [
       { key: "height", label: "Height", type: "range", min: 150, max: 205, step: 1, unit: " cm", initial: 178 },
       { key: "wrist", label: "Wrist to floor (in golf shoes)", type: "range", min: 70, max: 100, step: 0.5, unit: " cm", initial: 86, unknown: true },
-      { key: "glove", label: "Glove size", type: "choice", options: ["XS", "S", "M", "L", "XL", "Not sure"], initial: "M" },
+      { key: "glove", label: "Glove size", type: "choice", options: ["XS", "S", "M", "L", "XL", "Not sure"], initial: "" },
     ],
   },
 ];
 
 export type Answer = { value: string; status: "sure" | "guess" };
 
-/** Beginners/high handicappers rarely know their ball flight: skip it and defer to the swing video. */
+/** Beginners/high handicappers rarely know their ball flight: skip it and assume a typical flight (the engine says so). */
 export const SHORT_CARRY_YD = 120;
 export function asksBallFlight(score: string, carryYd: number | null) {
   if (score === ">92") return false;
   if (carryYd !== null && carryYd <= SHORT_CARRY_YD) return false;
   return true;
 }
-const ADVANCED = new Set(["flight"]);
+const ADVANCED = new Set(["flight", "loft"]);
 
 function fmt(q: Extract<Q, { type: "range" }>, n: number) {
   return `${n}${q.plusMax && n >= q.max ? "+" : ""}${q.unit}`;
@@ -79,6 +80,10 @@ export function QuickCard({
     ),
   );
   const [unknown, setUnknown] = useState<Record<string, boolean>>({});
+  // Sliders start at a typical value; only a moved slider counts as the golfer's answer (POR-29).
+  const [touched, setTouched] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(card.questions.map((q) => [q.key, Boolean(initial && q.type === "range" && !isNaN(parseFloat(initial)))])),
+  );
   const showAdvanced =
     card.id !== 2 || asksBallFlight(String(vals["score"]), unknown["carry"] ? null : Number(vals["carry"]));
   const visible = card.questions.filter((q) => showAdvanced || !ADVANCED.has(q.key));
@@ -88,10 +93,10 @@ export function QuickCard({
     if (!complete) return;
     const out: Record<string, Answer> = {};
     if (card.id === 2) out["tempo"] = { value: "From swing video", status: "guess" };
-    if (!showAdvanced) for (const k of ADVANCED) out[k] = { value: "From swing video", status: "guess" };
+    if (!showAdvanced) for (const k of ADVANCED) out[k] = { value: "Not sure", status: "guess" };
     for (const q of visible) {
       if (q.type === "range") {
-        out[q.key] = unknown[q.key] ? { value: "Not sure", status: "guess" } : { value: fmt(q, vals[q.key] as number), status: "sure" };
+        out[q.key] = unknown[q.key] || !touched[q.key] ? { value: "Not sure", status: "guess" } : { value: fmt(q, vals[q.key] as number), status: "sure" };
       } else {
         const v = String(vals[q.key]);
         out[q.key] = { value: v, status: v === "Not sure" ? "guess" : "sure" };
@@ -110,7 +115,7 @@ export function QuickCard({
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-1"><p className="text-sm text-muted-foreground">{q.label}</p><QuestionInfo field={q.key} label={q.label} variant="tooltip" /></div>
               {q.type === "range" && (
-                <p className="shrink-0 font-display text-2xl font-bold italic tabular-nums text-primary">{unknown[q.key] ? "?" : fmt(q, vals[q.key] as number)}</p>
+                <p className="shrink-0 font-display text-2xl font-bold italic tabular-nums text-primary">{unknown[q.key] ? "?" : touched[q.key] ? fmt(q, vals[q.key] as number) : <span className="text-base not-italic font-normal text-muted-foreground">{q.optional ? "Optional" : "Drag to set"}</span>}</p>
               )}
             </div>
             {q.type === "choice" ? (
@@ -139,7 +144,7 @@ export function QuickCard({
                   step={q.step}
                   value={vals[q.key] as number}
                   disabled={unknown[q.key]}
-                  onChange={(e) => setVals((v) => ({ ...v, [q.key]: Number(e.target.value) }))}
+                  onChange={(e) => { setVals((v) => ({ ...v, [q.key]: Number(e.target.value) })); setTouched((t) => ({ ...t, [q.key]: true })); }}
                   className="chat-range min-w-0 flex-1 accent-primary disabled:opacity-30"
                 />
                 {q.unknown && (
@@ -158,7 +163,7 @@ export function QuickCard({
           </div>
         ))}
         {!showAdvanced && (
-          <p className="text-xs text-muted-foreground">Ball flight can wait for the video stage.</p>
+          <p className="text-xs text-muted-foreground">No need to know your ball flight yet: we'll assume a typical mid flight and say so in your result.</p>
         )}
       </div>
       <Button disabled={!complete} onClick={submit} className="mt-6 h-auto w-full justify-between rounded-none px-5 py-3 font-display text-lg font-bold uppercase italic">

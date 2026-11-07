@@ -6,7 +6,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const reasons: Record<string, string> = {
   hand: 'So we look at the right-handed or left-handed options for you. No guessing which side of the ball you stand on.',
-  sex: 'Optional background context, not a shortcut to shaft flex or ability. Your actual carry, measurements and game matter more; skipping is fine.',
+  sex: 'Optional. Female golfers are offered Takomo’s ladies builds (lighter graphite shafts, length adjusted to match). Your carry, measurements and game still matter more; skipping is fine.',
+  loft: 'Lofts differ by brand, so two “7-irons” fly different distances. Your loft (on the maker’s spec page) lets us read your carry more fairly. Skip if unsure.',
   rounds: 'How often you play gives context to your experience and goals. It doesn’t measure your skill or decide a club on its own.',
   score: 'Your usual score helps put forgiveness and control in perspective. We pair it with your priorities, not judge your game by one number.',
   carry: 'Your normal 7-iron carry gives a rough starting point for distance and shaft discussions. Loft and strike affect it, so it isn’t a verified swing-speed measurement.',

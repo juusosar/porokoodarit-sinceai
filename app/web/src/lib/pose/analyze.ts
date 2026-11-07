@@ -17,6 +17,14 @@ export type SwingAnalysis = {
 const L_WRIST = 15;
 const R_WRIST = 16;
 export const MAX_SECONDS = 10;
+/** Slow-motion files play 4-8x longer than the swing: read twice as much media time. */
+export const maxMediaSeconds = (slowMo: number) => MAX_SECONDS * (slowMo > 1 ? 2 : 1);
+/** Real-time limits; outside them the read is treated as a misread (or an unflagged slow-mo file). */
+export const PLAUSIBLE = { backswingS: [0.45, 2.5], downswingS: [0.12, 0.6] } as const;
+export function plausibleTempo(t: { backswingS: number; downswingS: number }): boolean {
+  return t.backswingS >= PLAUSIBLE.backswingS[0] && t.backswingS <= PLAUSIBLE.backswingS[1]
+    && t.downswingS >= PLAUSIBLE.downswingS[0] && t.downswingS <= PLAUSIBLE.downswingS[1];
+}
 
 /** Mean wrist height per frame; gaps (no pose) filled from the previous frame. */
 export function wristSeries(frames: PoseFrame[]): number[] {
@@ -30,14 +38,19 @@ export function wristSeries(frames: PoseFrame[]): number[] {
   return y.map((v) => (Number.isNaN(v) ? first : v));
 }
 
-export function analyzeFrames(frames: PoseFrame[], fps: number): SwingAnalysis {
+/**
+ * `fps` = sampling rate in media time. `slowMo` = playback slowdown of the file (iPhone slow-mo is saved
+ * as a 30 fps video that plays 4-8x slower): tempo runs at fps * slowMo so it comes out in real seconds,
+ * while the swing window stays in media seconds (it is used to seek the file).
+ */
+export function analyzeFrames(frames: PoseFrame[], fps: number, slowMo = 1): SwingAnalysis {
   const detected = frames.filter((f) => f.landmarks).length;
   const detectedShare = frames.length ? detected / frames.length : 0;
   if (detectedShare < 0.6) {
     return { frames, fps, tempo: null, window: null, detectedShare, error: "body not visible in most frames" };
   }
   try {
-    const tempo = tempoFromWristY(wristSeries(frames), fps);
+    const tempo = tempoFromWristY(wristSeries(frames), fps * slowMo);
     const t0 = frames[0].t;
     return {
       frames,
@@ -45,8 +58,8 @@ export function analyzeFrames(frames: PoseFrame[], fps: number): SwingAnalysis {
       tempo,
       detectedShare,
       window: {
-        start: Math.max(0, t0 + tempo.takeawayFrame / fps - 0.3),
-        end: t0 + tempo.impactFrame / fps + 0.5,
+        start: Math.max(0, t0 + tempo.takeawayFrame / fps - 0.3 * slowMo),
+        end: t0 + tempo.impactFrame / fps + 0.5 * slowMo,
       },
     };
   } catch (e) {
@@ -86,12 +99,13 @@ export async function analyzeVideo(
   video: HTMLVideoElement,
   {
     sampleFps = 30,
+    slowMo = 1,
     onProgress,
     signal,
-  }: { sampleFps?: number; onProgress?: (share: number) => void; signal?: AbortSignal } = {},
+  }: { sampleFps?: number; slowMo?: number; onProgress?: (share: number) => void; signal?: AbortSignal } = {},
 ): Promise<SwingAnalysis> {
   const lm = await getPoseLandmarker();
-  const duration = Math.min(video.duration, MAX_SECONDS);
+  const duration = Math.min(video.duration, maxMediaSeconds(slowMo));
   const n = Math.floor(duration * sampleFps);
   const frames: PoseFrame[] = [];
   const ts = poseTimeline();
@@ -103,5 +117,5 @@ export async function analyzeVideo(
     frames.push({ t, landmarks: res.landmarks[0] ?? null });
     onProgress?.((i + 1) / n);
   }
-  return analyzeFrames(frames, sampleFps);
+  return analyzeFrames(frames, sampleFps, slowMo);
 }
