@@ -28,6 +28,7 @@ services:
       VITE_SHOP_URL: ${VITE_SHOP_URL:-https://takomogolf.com}
       VITE_CLUB_TRACKING: ${VITE_CLUB_TRACKING:-false}
       VITE_VOICE: ${VITE_VOICE:-on}
+      VITE_LIVE_FIT_CARD: ${VITE_LIVE_FIT_CARD:-on}
     ports:
       - "3000:8080"
     depends_on:
