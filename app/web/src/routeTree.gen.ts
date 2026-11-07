@@ -14,6 +14,7 @@ import { Route as ClubsRouteImport } from './routes/clubs'
 import { Route as EnrichmentRouteImport } from './routes/enrichment'
 import { Route as ResultsRouteImport } from './routes/results'
 import { Route as SwingRouteImport } from './routes/swing'
+import { Route as BenchClubRouteImport } from './routes/bench.club'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,11 @@ const SwingRoute = SwingRouteImport.update({
   path: '/swing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BenchClubRoute = BenchClubRouteImport.update({
+  id: '/bench/club',
+  path: '/bench/club',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/enrichment': typeof EnrichmentRoute
   '/results': typeof ResultsRoute
   '/swing': typeof SwingRoute
+  '/bench/club': typeof BenchClubRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/enrichment': typeof EnrichmentRoute
   '/results': typeof ResultsRoute
   '/swing': typeof SwingRoute
+  '/bench/club': typeof BenchClubRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,22 @@ export interface FileRoutesById {
   '/enrichment': typeof EnrichmentRoute
   '/results': typeof ResultsRoute
   '/swing': typeof SwingRoute
+  '/bench/club': typeof BenchClubRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/clubs' | '/enrichment' | '/results' | '/swing'
+  fullPaths:
+    '/' | '/clubs' | '/enrichment' | '/results' | '/swing' | '/bench/club'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/clubs' | '/enrichment' | '/results' | '/swing'
-  id: '__root__' | '/' | '/clubs' | '/enrichment' | '/results' | '/swing'
+  to: '/' | '/clubs' | '/enrichment' | '/results' | '/swing' | '/bench/club'
+  id:
+    | '__root__'
+    | '/'
+    | '/clubs'
+    | '/enrichment'
+    | '/results'
+    | '/swing'
+    | '/bench/club'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +94,7 @@ export interface RootRouteChildren {
   EnrichmentRoute: typeof EnrichmentRoute
   ResultsRoute: typeof ResultsRoute
   SwingRoute: typeof SwingRoute
+  BenchClubRoute: typeof BenchClubRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SwingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bench/club': {
+      id: '/bench/club'
+      path: '/bench/club'
+      fullPath: '/bench/club'
+      preLoaderRoute: typeof BenchClubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -125,6 +150,7 @@ const rootRouteChildren: RootRouteChildren = {
   EnrichmentRoute: EnrichmentRoute,
   ResultsRoute: ResultsRoute,
   SwingRoute: SwingRoute,
+  BenchClubRoute: BenchClubRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
