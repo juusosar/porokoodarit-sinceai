@@ -15,10 +15,10 @@ import { useSpeakLine, VoiceToggle } from "@/features/voice";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Find My Fit with Grant | Takomo Golf" },
-      { name: "description", content: "Chat with Grant, your AI club fitter. Build your golfer profile in minutes." },
-      { property: "og:title", content: "Find My Fit with Grant | Takomo Golf" },
-      { property: "og:description", content: "Chat with Grant, your AI club fitter. Build your golfer profile in minutes." },
+      { title: "Find My Fit with Gront | Takomo Golf" },
+      { name: "description", content: "Chat with Gront, your AI club fitter. Build your golfer profile in minutes." },
+      { property: "og:title", content: "Find My Fit with Gront | Takomo Golf" },
+      { property: "og:description", content: "Chat with Gront, your AI club fitter. Build your golfer profile in minutes." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -26,8 +26,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const GRANT_PHOTO = "/images/grant.jpg";
-const GRANT_AVATAR = "/images/grant-avatar.png";
+const HOST_PHOTO = "/images/host.jpg";
+const HOST_AVATAR = "/images/host-avatar.png";
 
 const FIELDS: { key: string; label: string }[] = [
   { key: "hand", label: "Hand" },
@@ -47,7 +47,7 @@ const FIELDS: { key: string; label: string }[] = [
 const GREETING: UIMessage = {
   id: "greet",
   role: "assistant",
-  parts: [{ type: "text", text: "Hey, Grant here. I'll fit you like I'm standing next to you on the range. Quick taps first, then we talk. Start with the basics:" }],
+  parts: [{ type: "text", text: "Hey, Gront here. I'll fit you like I'm standing next to you on the range. Quick taps first, then we talk. Start with the basics:" }],
 };
 
 function Index() {
@@ -70,10 +70,10 @@ function Intro({ onStart, onResume, loading }: { onStart: () => void; onResume?:
     <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-6 py-12 md:grid-cols-2 md:py-20">
       <div className="pointer-events-none absolute inset-0 bg-glow" />
       <div className="relative aspect-square overflow-hidden">
-        <img src={GRANT_PHOTO} alt="Grant Horvat" className="h-full w-full object-cover" />
+        <img src={HOST_PHOTO} alt="Gront Harvot" className="h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-background/80 px-3 py-2 text-xs uppercase tracking-widest backdrop-blur">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Grant is online
+          <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Gront is online
         </div>
       </div>
       <div data-scroll-reveal className="relative">
@@ -82,7 +82,7 @@ function Intro({ onStart, onResume, loading }: { onStart: () => void; onResume?:
           Let's find <span className="text-primary">your fit.</span>
         </h1>
         <p className="mt-5 max-w-md text-lg text-muted-foreground">
-          Chat with Grant for three minutes. He asks the questions a real fitter would, reads your carry the way a fitter does (most of us remember our best shot), and shows the evidence behind every part of your spec.
+          Chat with Gront for three minutes. He asks the questions a real fitter would, reads your carry the way a fitter does (most of us remember our best shot), and shows the evidence behind every part of your spec.
         </p>
         <Button
           disabled={loading}
@@ -192,8 +192,8 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
         <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
           <Avatar speaking={pacing.presenting} />
           <div className="flex-1">
-            <p className="font-display text-2xl font-bold uppercase italic leading-none">Grant Horvat</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />{pacing.presenting ? status === "streaming" ? "Grant is replying…" : "Giving that some thought…" : "Your game. Your fit."}</p>
+            <p className="font-display text-2xl font-bold uppercase italic leading-none">Gront Harvot</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />{pacing.presenting ? status === "streaming" ? "Gront is replying…" : "Giving that some thought…" : "Your game. Your fit."}</p>
           </div>
           <span className="hidden font-display text-lg uppercase italic text-muted-foreground sm:block">Let's talk golf.</span>
           <VoiceToggle />
@@ -223,14 +223,14 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
                 <p className="max-w-[85%] border-r-2 border-primary bg-secondary/70 px-4 py-3 text-sm text-foreground">{text}</p>
               </div>
             ) : (
-              <div key={activeReply ? "active-reply" : m.id} className="flex items-start gap-3" data-grant-reply={activeReply ? "active" : "saved"}>
+              <div key={activeReply ? "active-reply" : m.id} className="flex items-start gap-3" data-host-reply={activeReply ? "active" : "saved"}>
                 <Avatar small />
                 {text ? <p className="max-w-[85%] whitespace-pre-line pt-1 text-base leading-relaxed">{text}<span className={activeReply && pacing.presenting ? "chat-cursor" : "hidden"} aria-hidden="true" /></p> : <ThinkingDots />}
               </div>
             );
           })}
           {pacing.presenting && messages.at(-1)?.role !== "assistant" && (
-            <div key="active-reply" className="flex items-start gap-3" data-grant-reply="active">
+            <div key="active-reply" className="flex items-start gap-3" data-host-reply="active">
               <Avatar small />
               <ThinkingDots />
             </div>
@@ -258,7 +258,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
               </div>
             );
           })()}
-          {error && <p role="status" className="text-sm text-destructive">Grant couldn't reach the fitting service just now. Your answers are saved; keep going or try again in a moment.</p>}
+          {error && <p role="status" className="text-sm text-destructive">Gront couldn't reach the fitting service just now. Your answers are saved; keep going or try again in a moment.</p>}
           {saveError && <p role="alert" className="text-sm text-destructive">Couldn't save your fitting. Your answers are still here; please try again before continuing.</p>}
         </div>
 
@@ -271,8 +271,8 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
             rows={1}
-            placeholder="Tell Grant about your game…"
-            aria-label="Message Grant"
+            placeholder="Tell Gront about your game…"
+            aria-label="Message Gront"
             className="max-h-32 min-w-0 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
           />
           <Button type="submit" disabled={pacing.presenting || !input.trim()} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center bg-primary text-primary-foreground transition disabled:opacity-40">
@@ -286,7 +286,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
 }
 
 function ThinkingDots() {
-  return <span className="flex h-9 items-center gap-1" aria-label="Grant is thinking">
+  return <span className="flex h-9 items-center gap-1" aria-label="Gront is thinking">
     {[0, 1, 2].map(i => <span key={i} className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: `${i * 120}ms` }} />)}
   </span>;
 }
@@ -296,7 +296,7 @@ function Avatar({ speaking, small }: { speaking?: boolean; small?: boolean }) {
   return (
     <div className="relative shrink-0">
       {speaking && <span className="absolute -inset-1 animate-pulse rounded-full border border-primary/50" />}
-      <img src={GRANT_AVATAR} alt="Grant" className={`relative ${size} rounded-full border-2 border-primary object-cover`} />
+      <img src={HOST_AVATAR} alt="Gront" className={`relative ${size} rounded-full border-2 border-primary object-cover`} />
     </div>
   );
 }
