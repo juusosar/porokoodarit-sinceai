@@ -21,7 +21,8 @@
         "carry_7i_yd": {
           "anyOf": [
             {
-              "exclusiveMinimum": 0,
+              "maximum": 260,
+              "minimum": 40,
               "type": "number"
             },
             {
@@ -162,7 +163,8 @@
         "speed_7i_mph": {
           "anyOf": [
             {
-              "exclusiveMinimum": 0,
+              "maximum": 130,
+              "minimum": 30,
               "type": "number"
             },
             {

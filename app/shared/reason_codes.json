@@ -104,7 +104,7 @@
     },
     "STOCK_LENGTH_TRADEOFF": {
       "part": "purchase",
-      "text": "Standard length is {delta_in} in off your fit: posture and strike suffer a bit."
+      "text": "Standard length would be {delta_in} in {direction} than your fit: posture and strike suffer a bit."
     },
     "STOCK_LIE_TRADEOFF": {
       "part": "purchase",

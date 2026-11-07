@@ -70,8 +70,8 @@ class Answers(_Model):
     sex: Literal["male", "female"] | None = None
     hand: Hand | None = None
     score_bucket: int | None = Field(default=None, ge=1, le=5)
-    speed_7i_mph: float | None = Field(default=None, gt=0)
-    carry_7i_yd: float | None = Field(default=None, gt=0)
+    speed_7i_mph: float | None = Field(default=None, ge=30, le=130)
+    carry_7i_yd: float | None = Field(default=None, ge=40, le=260)
     own_7i_loft_deg: float | None = Field(default=None, gt=15, lt=45)
     characteristics: list[Characteristic] = Field(default_factory=list, max_length=3)
     flight: Literal["low", "mid", "high"] | None = None

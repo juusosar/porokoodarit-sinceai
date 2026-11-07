@@ -181,7 +181,7 @@ def run(req: FitRequest) -> FitState:
         reasons.append(Reason(code="HEAD_FORGIVENESS_PENALTY"))
     p, alt, q = _discrete(p_top, head_slug)
     cc = None
-    if alt and (q >= CLOSE_CALL_P or abs(modal[head_slug] - modal[alt]) <= 1):
+    if alt and (q >= CLOSE_CALL_P or (q >= 0.1 and abs(modal[head_slug] - modal[alt]) <= 1)):
         cc = CloseCall(
             alternative=C.head(alt)["name"],
             margin=round(p - q, 3),
@@ -340,7 +340,7 @@ def run(req: FitRequest) -> FitState:
     )
 
     # ---------------------------------------------------------------- purchase + advice
-    advice = stock_advice(head_slug, sh, length, lie, grip, purchase, fz)
+    advice = stock_advice(head_slug, sh, length, lie, grip, purchase, fz, base.handedness)
     if purchase == "stock":
         reasons = [Reason(code="PURCHASE_STOCK")]
     else:
@@ -375,7 +375,9 @@ def run(req: FitRequest) -> FitState:
     )
 
 
-def stock_advice(head_slug: str, sh: dict, length: float, lie: int, grip: str, purchase: str, fz) -> StockAdvice:
+def stock_advice(
+    head_slug: str, sh: dict, length: float, lie: int, grip: str, purchase: str, fz, hand: str = "right"
+) -> StockAdvice:
     """What makes this fit custom, and what the nearest stock build would trade away."""
     h = C.head(head_slug)
     blockers: list[StockBlocker] = []
@@ -386,17 +388,26 @@ def stock_advice(head_slug: str, sh: dict, length: float, lie: int, grip: str, p
             s for s in C.shafts_for_head(head_slug) if s["material"] == "steel" and s["model"] in h["stock_shafts"]
         ]
         target = C.flex_index(sh["flex"])
-        stock_shaft = min(cands, key=lambda s: (abs(C.flex_index(s["flex"]) - target), C.flex_index(s["flex"])))
+        stock_label = "No stock shaft"
+        if cands:
+            stock_shaft = min(cands, key=lambda s: (abs(C.flex_index(s["flex"]) - target), C.flex_index(s["flex"])))
+            stock_label = _shaft_label(stock_shaft)
         blockers.append(
             StockBlocker(
                 part=SpecPart.shaft,
                 custom_value=_shaft_label(sh),
-                stock_value=_shaft_label(stock_shaft),
+                stock_value=stock_label,
                 impact_code="STOCK_SHAFT_TRADEOFF",
-                params={"flex_change": stock_shaft["flex"] != sh["flex"]},
+                params={
+                    "flex_change": stock_shaft["flex"] != sh["flex"],
+                    "stock_value": stock_label,
+                    "custom_value": _shaft_label(sh),
+                },
             )
         )
-    alt[SpecPart.shaft] = _shaft_label(stock_shaft)
+        alt[SpecPart.shaft] = stock_label
+    else:
+        alt[SpecPart.shaft] = _shaft_label(sh)
     if length != 0:
         blockers.append(
             StockBlocker(
@@ -404,7 +415,7 @@ def stock_advice(head_slug: str, sh: dict, length: float, lie: int, grip: str, p
                 custom_value=_signed(length, " in"),
                 stock_value="Standard",
                 impact_code="STOCK_LENGTH_TRADEOFF",
-                params={"delta_in": -length},
+                params={"delta_in": abs(length), "direction": "shorter" if length > 0 else "longer"},
             )
         )
     alt[SpecPart.length] = "Standard"
@@ -423,7 +434,10 @@ def stock_advice(head_slug: str, sh: dict, length: float, lie: int, grip: str, p
                 impact_code="STOCK_LIE_TRADEOFF",
                 params={
                     "offline_yd": round(carry * math.tan(aim), 1),
-                    "direction": "left" if err > 0 else "right",
+                    # toe-up starts it left for a right-hander, right for a left-hander
+                    "direction": ("left" if err > 0 else "right")
+                    if hand == "right"
+                    else ("right" if err > 0 else "left"),
                 },
             )
         )

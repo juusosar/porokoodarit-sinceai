@@ -162,3 +162,29 @@ def test_length_reason_is_imperial():
     s = F.run(FitRequest(step="profile", answers=full_answers(height_cm=183)))
     (r,) = [r for r in s.parts["length"].reasons if r.code == "LENGTH_FROM_HEIGHT"]
     assert r.params["height"] == "6'0\""
+
+
+def test_tiny_or_odd_carry_cannot_dominate():
+    assert client.post("/v1/fit", json={"step": "x", "answers": {"carry_7i_yd": 10}}).status_code == 422
+    obs = F.Fu.carry_to_speed(45, None)
+    assert obs.sd >= 3 and obs.value > 15
+    s = F.run(FitRequest(step="x", answers=full_answers(speed_7i_mph=None, carry_7i_yd=55)))
+    assert s.buildable
+
+
+def test_lie_tradeoff_direction_mirrors_for_left_handers():
+    m = Measurements(lie_need_deg=Observation(value=-2, sd=0.2, source="measured", method="trackman"))
+    right = F.run(FitRequest(step="x", answers=full_answers(), measurements=m)).stock_advice.blockers[0]
+    left = F.run(FitRequest(step="x", answers=full_answers(hand="left"), measurements=m)).stock_advice.blockers[0]
+    assert right.params["direction"] == "left" and left.params["direction"] == "right"
+
+
+def test_stock_tradeoff_params_fill_templates():
+    import json
+
+    codes = json.loads((F.C.PATH.parents[3] / "shared" / "reason_codes.json").read_text())["codes"]
+    s = F.run(FitRequest(step="x", answers=full_answers(age=72, height_cm=196)))
+    for b in s.stock_advice.blockers:
+        codes[b.impact_code]["text"].format(**b.params)  # no KeyError
+        if b.part == "length":
+            assert b.params["delta_in"] > 0 and b.params["direction"] == "shorter"

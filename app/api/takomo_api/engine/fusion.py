@@ -33,6 +33,8 @@ ASKED = {
 }
 CARRY_OVER_REPORT_YD = 15.0  # median over-report vs true mean carry
 CARRY_SD_YD = 9.0
+MIN_TRUE_CARRY_YD = 40.0  # floor so tiny/odd carries can't produce ~0 mph with huge weight
+MIN_CARRY_SPEED_SD = 3.0
 REF_LOFT_DEG = 31.0  # population mean own 7-iron loft
 LOFT_SD_DEG = 1.8
 YD_PER_MPH_AT_REF = 1.75  # carry per mph of club speed for a 31 deg 7-iron (rough, tune in M7)
@@ -81,11 +83,13 @@ def carry_to_speed(carry_yd: float, loft_deg: float | None) -> Observation:
     """Reported carry -> estimated 7-iron speed, corrected for over-report and own-club loft."""
     loft = loft_deg if loft_deg is not None else REF_LOFT_DEG
     loft_sd = 0.3 if loft_deg is not None else LOFT_SD_DEG
-    true_carry = carry_yd - CARRY_OVER_REPORT_YD
+    true_carry = max(carry_yd - CARRY_OVER_REPORT_YD, MIN_TRUE_CARRY_YD)
     yd_per_mph = YD_PER_MPH_AT_REF * (1 + CARRY_PCT_PER_DEG * (REF_LOFT_DEG - loft))
     speed = true_carry / yd_per_mph
-    rel_sd = math.hypot(CARRY_SD_YD / max(true_carry, 1), CARRY_PCT_PER_DEG * loft_sd)
-    return Observation(value=speed, sd=speed * rel_sd, source=E.estimated, method="carry_loft_corrected")
+    rel_sd = math.hypot(CARRY_SD_YD / true_carry, CARRY_PCT_PER_DEG * loft_sd)
+    return Observation(
+        value=speed, sd=max(speed * rel_sd, MIN_CARRY_SPEED_SD), source=E.estimated, method="carry_loft_corrected"
+    )
 
 
 def static_lie(height_cm: float, w2f_cm: float) -> float:
