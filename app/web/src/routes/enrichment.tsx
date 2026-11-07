@@ -17,7 +17,7 @@ export const Route = createFileRoute('/enrichment')({ head: () => ({ meta: [
   { property: 'og:title', content: 'Extra Fitting Data | Takomo Golf' }, { property: 'og:description', content: 'Your numbers, your fitting. Optional extra data without the guesswork.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary' },
 ] }), component: EnrichmentPage });
 
-const metrics = [{ key: 'speed', label: 'Clubhead speed', unit: 'mph', max: 200 }, { key: 'carry', label: 'Carry distance', unit: '', max: 500 }, { key: 'launch', label: 'Launch angle', unit: '°', max: 90 }, { key: 'spin', label: 'Spin rate', unit: 'rpm', max: 20000 }, { key: 'landing', label: 'Landing angle', unit: '°', max: 70 }] as const;
+const metrics = [{ key: 'speed', label: 'Clubhead speed', unit: 'mph', max: 200 }, { key: 'carry', label: 'Carry distance', unit: '', max: 500 }, { key: 'launch', label: 'Launch angle', unit: '°', max: 90 }, { key: 'spin', label: 'Spin rate', unit: 'rpm', max: 20000 }, { key: 'landing', label: 'Landing angle', unit: '°', max: 65 }] as const;
 function EnrichmentPage() {
   const fitting = useFitting();
   const confirmed = fitting.snapshot?.confirmed === true;

@@ -83,10 +83,11 @@ def _cdf(z: float) -> float:
     return 0.5 * (1 + math.erf(z / math.sqrt(2)))
 
 
-def combine(name: str, obs: list[Observation]) -> Estimate:
+def combine(name: str, obs: list[Observation], use_prior: bool = True) -> Estimate:
+    """use_prior=False: the observations already carry their own prior (lie: the static chart)."""
     mu0, sd0 = PRIOR[name]
     prior = Observation(value=mu0, sd=sd0, source=E.default, method="population_prior")
-    allobs = [prior, *obs]
+    allobs = [prior, *obs] if use_prior or not obs else list(obs)
     w = [1 / max(o.sd, 1e-6) ** 2 for o in allobs]
     tot = sum(w)
     mean = sum(o.value * wi for o, wi in zip(allobs, w, strict=True)) / tot
@@ -174,6 +175,7 @@ class Fused:
     height: Estimate
     w2f: Estimate
     speed: Estimate
+    speed_head: Estimate  # speed without the score prior: the head already scores the score answer itself
     hand: Estimate
     lie: Estimate
     lie_measured: bool
@@ -191,6 +193,7 @@ def fuse(a: Answers, m: Measurements) -> Fused:
         speed_obs.append(carry_to_speed(m.carry_7i_yd.value, a.own_7i_loft_deg, measured=True))
     elif a.carry_7i_yd is not None:
         speed_obs.append(carry_to_speed(a.carry_7i_yd, a.own_7i_loft_deg))
+    speed_head = combine("speed_7i_mph", list(speed_obs))
     if a.score_bucket is not None:
         speed_obs.append(
             Observation(
@@ -215,7 +218,8 @@ def fuse(a: Answers, m: Measurements) -> Fused:
     lie_obs = [Observation(value=chart, sd=chart_sd, source=chart_src, method="static_chart")] + meas(m.lie_need_deg)
     if m.ball_line_tilt_deg is not None and m.lie_need_deg is None:
         lie_obs.append(ball_line_lie(m.ball_line_tilt_deg))
-    lie = combine("lie_need_deg", lie_obs)
+    # no population prior: the chart is the prior, so with no shots the lie is exactly the chart (= Takomo's rule)
+    lie = combine("lie_need_deg", lie_obs, use_prior=False)
     # body-number sources carry through to the chart estimate
     if chart_src == E.estimated:
         order = [E.asked, E.measured, E.estimated, E.default]
@@ -226,6 +230,7 @@ def fuse(a: Answers, m: Measurements) -> Fused:
         height=height,
         w2f=w2f,
         speed=speed,
+        speed_head=speed_head,
         hand=hand,
         lie=lie,
         lie_measured=m.lie_need_deg is not None or m.ball_line_tilt_deg is not None,
