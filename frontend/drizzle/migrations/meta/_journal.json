@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794029909124,
+      "tag": "0000_saved_fitting_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794037194254,
+      "tag": "0001_private_swing_submissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794047982085,
+      "tag": "0002_private_fitting_enrichment",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794050759225,
+      "tag": "0003_private_fitting_blueprints",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794051502574,
+      "tag": "0004_private_head_selections",
+      "breakpoints": true
+    }
+  ]
+}
