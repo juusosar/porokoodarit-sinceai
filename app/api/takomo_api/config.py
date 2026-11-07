@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     tts_cache_mb: int = 32
     # Abuse limits for /v1/explain (per API instance, in memory).
     explain_rate_per_min: int = 30
+    # Host chat: ~8 turns per fitting; a demo venue shares one IP, so allow more.
+    chat_rate_per_min: int = 120
     max_body_bytes: int = 64_000
 
     @property
