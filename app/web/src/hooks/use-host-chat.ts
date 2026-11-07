@@ -22,7 +22,7 @@ const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).t
 /**
  * Host chat over our API (POST /v1/chat), replacing the AI SDK's useChat + Lovable gateway.
  * Same surface the page used: messages, sendMessage({ text }), status, error.
- * The host's profile updates and recheck requests come back as tool-like message parts.
+ * The host's profile updates come back as tool-like message parts.
  */
 export function useHostChat({ messages: initial, profile }: { messages: UIMessage[]; profile: () => Profile }) {
   const [messages, setMessages] = useState<UIMessage[]>(initial);
@@ -57,7 +57,6 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
           const callId = id("call");
           const parts: UIMessage["parts"] = [];
           if (Object.keys(r.profile).length) parts.push({ type: "tool-update_profile", toolCallId: `${callId}-p`, input: r.profile });
-          if (r.recheck) parts.push({ type: "tool-ask_recheck", toolCallId: `${callId}-r`, input: r.recheck });
           parts.push({ type: "text", text: r.reply });
           const next = [...latest.current, { id: id("a"), role: "assistant" as const, parts }];
           latest.current = next;

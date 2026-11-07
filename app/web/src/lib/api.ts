@@ -99,7 +99,6 @@ export type ChatReply = {
   latency_ms: number;
   reply: string;
   profile: Record<string, ChatField>;
-  recheck: { field: string; reason: string } | null;
   fallback_reason: string | null;
   audio_token?: string | null;
 };

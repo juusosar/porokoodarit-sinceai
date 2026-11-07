@@ -44,7 +44,6 @@ def test_llm_reply_and_profile(fake):
         {
             "reply": "Righty, 20 rounds a year. Nice.",
             "profile": {"hand": {"value": "Right", "status": "sure"}, "bogus": {"value": "x", "status": "sure"}},
-            "recheck": None,
         }
     )
     r = CH.chat(req())
@@ -55,21 +54,12 @@ def test_llm_reply_and_profile(fake):
     assert (p.calls[0].timeout_s, p.calls[0].thinking_level) == (timeout_s, thinking)
 
 
-def test_recheck_passes_through(fake):
-    fake({"reply": "Hmm, check that carry.", "profile": {}, "recheck": {"field": "carry", "reason": "Long for >92."}})
+def test_model_recheck_is_ignored(fake):
+    """Double-check cards are gone (Juhi, 7 Nov): a stray recheck from the model is dropped."""
+    fake({"reply": "Nice carry.", "profile": {}, "recheck": {"field": "carry", "reason": "Long for >92."}})
     r = CH.chat(req("[Card 2: Your game] Score: >92, Carry: 180 yd"))
-    assert r.recheck and r.recheck.field == "carry"
-
-
-def test_only_one_recheck_per_chat(fake):
-    fake({"reply": "Still long?", "profile": {}, "recheck": {"field": "carry", "reason": "Long for >92."}})
-    msgs = [
-        {"role": "user", "text": "[Card 2: Your game] Score: >92, Carry: 180 yd"},
-        {"role": "assistant", "text": "Hmm, check that carry."},
-        {"role": "user", "text": "[Recheck carry] 175 yd"},
-    ]
-    r = CH.chat(CH.ChatRequest(messages=msgs, profile={}))
-    assert r.recheck is None and r.reply == CH.SCRIPTED["recheck"]
+    assert r.source == "llm" and "recheck" not in r.model_dump()
+    assert "recheck" not in CH.OUTPUT_SCHEMA["properties"]
 
 
 @pytest.mark.parametrize(
@@ -78,7 +68,6 @@ def test_only_one_recheck_per_chat(fake):
         {"reply": "How old are you, by the way?", "profile": {}},  # never asks age
         {"reply": "You swing about 85 mph.", "profile": {}},  # never quotes mph
         {"reply": "", "profile": {}},  # empty
-        {"reply": "ok", "profile": {}, "recheck": {"field": "wants", "reason": "x"}},  # bad recheck field
     ],
 )
 def test_bad_output_falls_back(fake, out):
@@ -135,14 +124,14 @@ def test_confirm_question_always_ends_the_summary_turn(fake):
 @pytest.mark.parametrize(
     "out",
     [
-        {"reply": "ok", "profile": {}, "recheck": {"field": "carry", "reason": "Most 45 year olds carry less."}},
-        {"reply": "ok", "profile": {}, "recheck": {"field": "carry", "reason": "That's 90 mph territory."}},
+        {"reply": "Most 45 year olds carry less.", "profile": {}},
+        {"reply": "That's 90 mph territory.", "profile": {}},
         {"reply": "You'll love the 201 MKII.", "profile": {}},
         {"reply": "Sounds like stiff flex to me.", "profile": {}},
         {"reply": "Probably 2° upright.", "profile": {}},
     ],
 )
-def test_guard_covers_recheck_note_and_spec_talk(fake, out):
+def test_guard_covers_age_mph_and_spec_talk(fake, out):
     fake(out)
     assert CH.chat(req()).source == "template"
 
