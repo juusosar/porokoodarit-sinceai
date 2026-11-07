@@ -5,10 +5,11 @@ import { useFit } from "@/lib/fit-store";
 import { analyzeVideo, MAX_SECONDS, type SwingAnalysis } from "@/lib/pose/analyze";
 import { getPoseLandmarker } from "@/lib/pose/landmarker";
 import { drawSkeleton } from "@/lib/pose/overlay";
+import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 // Opt-in club tracking (Modal GPU, POR-10) ships behind a flag; off until the service is deployed.
-const CLUB_TRACKING = import.meta.env.VITE_CLUB_TRACKING === "true";
+const CLUB_TRACKING = env("VITE_CLUB_TRACKING", "false") === "true";
 // Lab error model for video tempo: +-1 frame plus 12 ms.
 const TEMPO_EXTRA_SD_S = 0.012;
 
