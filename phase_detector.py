@@ -235,13 +235,29 @@ class KinematicPhaseDetector:
             else:
                 frame_to_phase[f] = 'Finish'
 
+        backswing_s = None
+        downswing_s = None
+        tempo_ratio = None
+
+        t_top = event_timestamps_ms.get('Top', 0) / 1000.0
+        t_address = event_timestamps_ms.get('Address', 0) / 1000.0
+        t_impact = event_timestamps_ms.get('Impact', 0) / 1000.0
+
+        if t_top > t_address and t_impact > t_top:
+            backswing_s = round(t_top - t_address, 3)
+            downswing_s = round(t_impact - t_top, 3)
+            tempo_ratio = round(backswing_s / downswing_s, 2)
+
         result = {
             'video_path': str(video_path),
             'num_frames': num_frames,
             'fps': fps,
             'event_frames': event_frames,
             'event_timestamps_ms': event_timestamps_ms,
-            'frame_to_phase': frame_to_phase
+            'frame_to_phase': frame_to_phase,
+            'backswing_s': backswing_s,
+            'downswing_s': downswing_s,
+            'tempo_ratio': tempo_ratio
         }
 
         return result

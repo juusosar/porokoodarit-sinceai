@@ -5,21 +5,32 @@ import pandas as pd
 from pathlib import Path
 
 
-def calculate_tempo(phases: dict, fps: float = 30.0) -> float:
+def calculate_tempo(phases: dict = None, fps: float = 30.0, df_video: pd.DataFrame = None) -> float:
     """Retrieves or calculates the swing tempo ratio (Backswing Duration / Downswing Duration).
 
-    If phase_detector already computed 'tempo_ratio' in the JSON, it is directly retrieved.
-    Otherwise, it is computed from the timestamps or frame indices.
+    Extracts tempo ratio directly from df_video (first row) or from phases dict.
+    Otherwise, computes from timestamps or frame indices.
 
     Args:
-        phases: Dictionary containing detected event timestamps or frame indices
-                (e.g. loaded from swing_phases_*.json).
+        phases: Dictionary containing detected event timestamps or frame indices.
         fps: Video frame rate (used if only frame indices are available).
+        df_video: DataFrame slice for the specific video (optional).
 
     Returns:
         float: Tempo ratio rounded to 2 decimal places (e.g. 2.85 for a 2.85:1 tempo).
                Returns np.nan if phases are missing or invalid.
     """
+    # 0. Check directly from df_video (first row has tempo_ratio from preprocessing)
+    if df_video is not None and not df_video.empty and "tempo_ratio" in df_video.columns:
+        valid_tempo = df_video["tempo_ratio"].dropna()
+        if not valid_tempo.empty:
+            try:
+                val = float(valid_tempo.iloc[0])
+                if not np.isnan(val):
+                    return round(val, 2)
+            except (ValueError, TypeError):
+                pass
+
     if not isinstance(phases, dict):
         return np.nan
 
@@ -92,8 +103,14 @@ def calculate_club_path(df_video: pd.DataFrame, phases: dict) -> float:
         return np.nan
 
     # 1. Identify Impact Frame
-    event_frames = phases.get("event_frames", {})
+    event_frames = phases.get("event_frames", {}) if isinstance(phases, dict) else {}
     impact_frame = event_frames.get("Impact")
+
+    # If not in phases dict, look directly in df_video's swing_event column
+    if (impact_frame is None or pd.isna(impact_frame)) and "swing_event" in df_video.columns:
+        impact_rows = df_video[df_video["swing_event"] == "Impact"]
+        if not impact_rows.empty:
+            impact_frame = int(impact_rows["frame_idx"].iloc[0])
 
     wrist_y_cols = [c for c in ["landmark_15_y", "landmark_16_y", "lw_y", "rw_y"] if c in df_video.columns]
     wrist_x_cols = [c for c in ["landmark_15_x", "landmark_16_x", "lw_x", "rw_x"] if c in df_video.columns]
@@ -152,17 +169,17 @@ def calculate_swing_plane(df_video: pd.DataFrame, phases: dict) -> float:
 
 
 def collect_swing_metrics(
-    landmarks_csv: str = "all_pose_landmarks.csv",
-    output_csv: str = "estimated_swing_metrics.csv",
+    landmarks_csv: str = "all_pose_landmarks_front.csv",
+    output_csv: str = "estimated_swing_metrics_front.csv",
     user_height_m: float = 1.78
 ) -> pd.DataFrame:
     """Collects swing metrics piece-by-piece and exports 'estimated_swing_metrics.csv'.
 
     Columns:
-        [video_name, est_7i_speed_mph, est_tempo, est_club_path, est_swing_plane]
+        [golfer_id, est_7i_speed_mph, est_tempo, est_club_path, est_swing_plane]
 
     Args:
-        landmarks_csv: Path to CSV containing MediaPipe landmarks and YOLO tracking.
+        landmarks_csv: Path to CSV containing MediaPipe landmarks.
         output_csv: Path to write the output CSV ('estimated_swing_metrics.csv').
         user_height_m: Golfer height in meters (default 1.78m) for pixel-to-meter scaling.
 
@@ -176,59 +193,85 @@ def collect_swing_metrics(
     if os.path.exists(landmarks_csv):
         df_all = pd.read_csv(landmarks_csv)
 
-    # 2. Find all unique video names from CSV or available JSON phase files
-    video_names = []
-    if df_all is not None and "video_name" in df_all.columns:
-        video_names = list(df_all["video_name"].unique())
+    # 2. Find all unique golfer IDs from CSV or available JSON phase files
+    golfer_ids = []
+    id_col = "golfer_id" if (df_all is not None and "golfer_id" in df_all.columns) else "video_name"
+    if df_all is not None and id_col in df_all.columns:
+        golfer_ids = list(df_all[id_col].unique())
 
     # Fallback to search for swing_phases_*.json if CSV not yet created
-    if not video_names:
+    if not golfer_ids:
         for json_path in Path(".").glob("swing_phases_*.json"):
-            v_name = json_path.stem.replace("swing_phases_", "") + ".mp4"
-            video_names.append(v_name)
+            gid = json_path.stem.replace("swing_phases_", "")
+            golfer_ids.append(gid)
 
-    if not video_names:
-        # Default single video fallback
-        video_names = ["swing_analysis"]
+    if not golfer_ids:
+        # Default single golfer fallback
+        golfer_ids = ["swing_analysis"]
 
-    for v_name in video_names:
-        stem = Path(v_name).stem
-        # Try finding video-specific phase JSON or generic swing_phases.json
-        json_candidates = [
-            f"swing_phases_{stem}.json",
-            "swing_phases.json"
-        ]
-        phases_data = {}
-        for candidate in json_candidates:
-            if os.path.exists(candidate):
-                try:
-                    with open(candidate, "r", encoding="utf-8") as f:
-                        phases_data = json.load(f)
-                    break
-                except Exception:
-                    pass
-
+    for gid in golfer_ids:
+        stem = Path(str(gid)).stem
         # Video-specific telemetry slice
         df_video = pd.DataFrame()
         fps = 30.0
-        if df_all is not None and "video_name" in df_all.columns:
-            df_video = df_all[df_all["video_name"] == v_name].copy()
+        if df_all is not None and id_col in df_all.columns:
+            df_video = df_all[df_all[id_col] == gid].copy()
             if not df_video.empty and "timestamp_ms" in df_video.columns and len(df_video) > 1:
                 dt_ms = df_video["timestamp_ms"].diff().median()
                 if dt_ms and dt_ms > 0:
                     fps = 1000.0 / dt_ms
 
+        # Extract phase info directly from df_video columns
+        phases_data = {}
+        if not df_video.empty:
+            if "tempo_ratio" in df_video.columns:
+                valid_tempo = df_video["tempo_ratio"].dropna()
+                if not valid_tempo.empty and pd.notna(valid_tempo.iloc[0]):
+                    try:
+                        phases_data["tempo_ratio"] = float(valid_tempo.iloc[0])
+                    except (ValueError, TypeError):
+                        pass
+
+            if "swing_event" in df_video.columns:
+                event_df = df_video.dropna(subset=["swing_event"])
+                event_frames = {}
+                event_timestamps = {}
+                for _, r in event_df.iterrows():
+                    ev = str(r["swing_event"]).strip()
+                    if ev:
+                        event_frames[ev] = int(r["frame_idx"])
+                        if "timestamp_ms" in r:
+                            event_timestamps[ev] = float(r["timestamp_ms"])
+                if event_frames:
+                    phases_data["event_frames"] = event_frames
+                    phases_data["event_timestamps_ms"] = event_timestamps
+
+        # Fallback to swing_phases_*.json if legacy JSON exists
+        if not phases_data:
+            json_candidates = [
+                f"swing_phases_{stem}.json",
+                "swing_phases.json"
+            ]
+            for candidate in json_candidates:
+                if os.path.exists(candidate):
+                    try:
+                        with open(candidate, "r", encoding="utf-8") as f:
+                            phases_data = json.load(f)
+                        break
+                    except Exception:
+                        pass
+
         if phases_data.get("fps"):
             fps = float(phases_data["fps"])
 
         # 3. Calculate each metric piece-by-piece
-        tempo_val = calculate_tempo(phases_data, fps=fps)
+        tempo_val = calculate_tempo(phases_data, fps=fps, df_video=df_video)
         speed_val = calculate_club_speed(df_video, phases_data, fps=fps, user_height_m=user_height_m)
         path_val = calculate_club_path(df_video, phases_data)
         plane_val = calculate_swing_plane(df_video, phases_data)
 
         rows.append({
-            "video_name": v_name,
+            "golfer_id": gid,
             "est_7i_speed_mph": speed_val,
             "est_tempo": tempo_val,
             "est_club_path": path_val,
@@ -236,7 +279,7 @@ def collect_swing_metrics(
         })
 
     result_df = pd.DataFrame(rows, columns=[
-        "video_name",
+        "golfer_id",
         "est_7i_speed_mph",
         "est_tempo",
         "est_club_path",
@@ -297,8 +340,8 @@ def categorize_offset(est_club_path: float, out_to_in_threshold: float = -2.0) -
 
 
 def predict_fitting(
-    metrics_csv: str = "estimated_swing_metrics.csv",
-    output_csv: str = "predictions.csv"
+    metrics_csv: str = "estimated_swing_metrics_front.csv",
+    output_csv: str = "predictions_front.csv"
 ) -> pd.DataFrame:
     """Takes 'estimated_swing_metrics.csv' and outputs club fitting recommendations
 
@@ -306,7 +349,7 @@ def predict_fitting(
     and placeholders for forgiveness, speed, flex, and lie_deg.
 
     Output Columns:
-        [video_name, tempo, offset, forgiveness, speed, flex, lie_deg]
+        [golfer_id, tempo, offset, forgiveness, speed, flex, lie_deg]
 
     Args:
         metrics_csv: Path to input metrics CSV ('estimated_swing_metrics.csv').
@@ -320,9 +363,10 @@ def predict_fitting(
 
     df_metrics = pd.read_csv(metrics_csv)
     prediction_rows = []
+    id_col = "golfer_id" if "golfer_id" in df_metrics.columns else "video_name"
 
     for _, row in df_metrics.iterrows():
-        v_name = row.get("video_name", "unknown")
+        gid = row.get(id_col, "unknown")
         est_tempo_val = row.get("est_tempo")
         est_path_val = row.get("est_club_path")
 
@@ -330,7 +374,7 @@ def predict_fitting(
         offset_cat = categorize_offset(est_path_val)
 
         prediction_rows.append({
-            "video_name": v_name,
+            "golfer_id": gid,
             "tempo": tempo_cat,        # 'fast', 'mid', 'low'
             "offset": offset_cat,      # 'yes' if a lot of out-to-in, 'no' if else
             "forgiveness": None,       # e.g. 'Maximum', 'Mid-High', 'Players' -> yes / no
@@ -340,7 +384,7 @@ def predict_fitting(
         })
 
     df_preds = pd.DataFrame(prediction_rows, columns=[
-        "video_name",
+        "golfer_id",
         "tempo",
         "offset",
         "forgiveness",
