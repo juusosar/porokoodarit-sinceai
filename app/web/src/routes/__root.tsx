@@ -11,6 +11,7 @@ import {
 import courseBackground from '@/assets/moody-golf-course.jpg';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { DemoPanel, demoEnabled } from "@/components/DemoPanel";
+import { LiveFitCard, liveFitCardEnabled } from "@/components/LiveFitCard";
 
 function NotFoundComponent() {
   return (
@@ -87,6 +88,7 @@ function RootComponent() {
       <img src={courseBackground} alt="" aria-hidden="true" width={1920} height={1088} className="course-background" />
       <ScrollReveal />
       {demoEnabled() && <DemoPanel />}
+      {liveFitCardEnabled() && <LiveFitCard />}
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
