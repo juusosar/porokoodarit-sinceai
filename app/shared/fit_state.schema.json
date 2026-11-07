@@ -340,6 +340,7 @@
         },
         "step": {
           "description": "UI step that triggered this run, e.g. 'profile', 'swing'",
+          "pattern": "^[a-z_]{1,32}$",
           "title": "Step",
           "type": "string"
         }

@@ -1,4 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { DemoPanel, demoEnabled } from "@/components/DemoPanel";
 import { FitCard } from "@/components/fit/FitCard";
 import { STEPS, stepIndex } from "@/lib/steps";
 
@@ -8,6 +9,7 @@ export function Layout() {
   const step = STEPS[i];
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+      {demoEnabled() && <DemoPanel />}
       <header className="flex items-center justify-between px-4 pt-4">
         <Link to="/" className="font-display text-2xl font-extrabold italic uppercase">
           Takomo <span className="text-primary">Fitter</span>

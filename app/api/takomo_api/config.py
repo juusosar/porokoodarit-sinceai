@@ -13,6 +13,30 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     # Demo mode unlocks runtime settings overrides (provider switch panel). Never on in prod.
     demo_mode: bool = False
+    # Required header X-Demo-Token for PUT /v1/settings (demo mode only). Unset = settings locked.
+    demo_token: str | None = None
+
+    # LLM (POR-16). Provider-agnostic; "template" = no LLM, reason-code templates only.
+    llm_provider: str = "gemini"
+    llm_model_step: str = "gemini-flash-latest"
+    llm_model_final: str = "gemini-pro-latest"
+    llm_timeout_s: float = 6.0
+    gemini_api_key: str | None = None
+    # Models the demo panel may switch to (comma-separated). Env-configured role models are always allowed.
+    llm_model_allowlist: str = (
+        "gemini-flash-latest,gemini-flash-lite-latest,gemini-pro-latest,gemini-2.5-flash,gemini-2.5-pro"
+    )
+    # Abuse limits for /v1/explain (per API instance, in memory).
+    explain_rate_per_min: int = 30
+    max_body_bytes: int = 64_000
+
+    @property
+    def model_allowlist(self) -> set[str]:
+        return {m.strip() for m in self.llm_model_allowlist.split(",") if m.strip()} | {
+            self.llm_model_step,
+            self.llm_model_final,
+            "-",
+        }
 
     @property
     def cors_origin_list(self) -> list[str]:
