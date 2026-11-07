@@ -188,3 +188,36 @@ def test_stock_tradeoff_params_fill_templates():
         codes[b.impact_code]["text"].format(**b.params)  # no KeyError
         if b.part == "length":
             assert b.params["delta_in"] > 0 and b.params["direction"] == "shorter"
+
+
+def test_contradiction_asked_vs_measured():
+
+    obs = Observation(value=92, sd=1.5, source="measured", method="launch_monitor")
+    st = F.run(
+        FitRequest(step="launch_monitor", answers=Answers(speed_7i_mph=70), measurements=Measurements(speed_7i_mph=obs))
+    )
+    w = [r for r in st.warnings if r.code == "CONTRADICTION"]
+    assert w and w[0].params == {
+        "input": "speed_7i_mph",
+        "measurement": "speed_7i_mph",
+        "asked": 70,
+        "asked_unit": "mph",
+        "measured": 92,
+        "unit": "mph",
+    }
+    carry = F.run(
+        FitRequest(
+            step="launch_monitor",
+            answers=Answers(carry_7i_yd=150),
+            measurements=Measurements(speed_7i_mph=Observation(value=62, sd=1.5, source="measured")),
+        )
+    )
+    cw = [r.params for r in carry.warnings if r.code == "CONTRADICTION"]
+    assert cw and cw[0]["input"] == "carry_7i_yd" and cw[0]["measurement"] == "speed_7i_mph"
+    close = Observation(value=73, sd=1.5, source="measured", method="launch_monitor")
+    st = F.run(
+        FitRequest(
+            step="launch_monitor", answers=Answers(speed_7i_mph=74), measurements=Measurements(speed_7i_mph=close)
+        )
+    )
+    assert not [r for r in st.warnings if r.code == "CONTRADICTION"]
