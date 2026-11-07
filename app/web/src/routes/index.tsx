@@ -10,6 +10,7 @@ import { getFittingToken, startNewFitting } from "@/lib/fitting-session";
 import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
 import { LOCAL_PREFIX, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
+import { useSpeakLine, VoiceToggle } from "@/features/voice";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -104,7 +105,7 @@ function Intro({ onStart, onResume, loading }: { onStart: () => void; onResume?:
 function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const profileRef = useRef<Profile>({});
   const getProfile = useCallback(() => profileRef.current, []);
-  const { messages, sendMessage, status, error } = useHostChat({ messages: initial?.messages ?? [GREETING], profile: getProfile });
+  const { messages, sendMessage, status, error, line } = useHostChat({ messages: initial?.messages ?? [GREETING], profile: getProfile });
   const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [cardIdx, setCardIdx] = useState(initial?.cardIdx ?? 0);
@@ -119,6 +120,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [confirmed, setConfirmed] = useState(initial?.confirmed ?? false);
+  useSpeakLine(line);
 
   // Latest unresolved recheck request from Grant
   const recheck = useMemo(() => {
@@ -217,6 +219,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />{pacing.presenting ? status === "streaming" ? "Grant is replying…" : "Giving that some thought…" : "Your game. Your fit."}</p>
           </div>
           <span className="hidden font-display text-lg uppercase italic text-muted-foreground sm:block">Let's talk golf.</span>
+          <VoiceToggle />
         </div>
 
         <ol aria-label="Profiling progress" className="grid grid-cols-4 gap-2 border-b border-border px-4 pb-4 sm:px-6">
