@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     llm_model_step: str = "gemini-flash-latest"
     llm_model_final: str = "gemini-pro-latest"
     llm_timeout_s: float = 6.0
+    # Gemini 3+ "thinking" adds seconds per call. low = fast enough for live UI; "" = model default.
+    # Models without thinking_level support (Gemini 2.x) need "" here.
+    llm_thinking_level: str = "low"
     gemini_api_key: str | None = None
     # Keyless alternative: Vertex AI via Application Default Credentials (Cloud Run service account,
     # or `gcloud auth application-default login` locally). Takes precedence over the API key.

@@ -1,6 +1,7 @@
 """FastAPI entry point. Run: uvicorn takomo_api.main:app --reload"""
 
 import hmac
+import logging
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,9 @@ from .llm.explain import Explanation, Role, explain
 from .ratelimit import RateLimiter, client_key
 from .schema import SCHEMA_VERSION, FitRequest, FitState
 from .tts import router as voice
+
+# App logs (LLM latency, fallback causes) to stderr at INFO; uvicorn's own loggers do not propagate here.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
 def create_app() -> FastAPI:
