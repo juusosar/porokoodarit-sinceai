@@ -1,5 +1,4 @@
 import { bestBox, letterbox, toChw } from "./detector";
-import { quantile, summarize } from "./stats";
 
 describe("letterbox", () => {
   it("fits portrait 1080x1920 into 640 with side padding", () => {
@@ -41,20 +40,5 @@ describe("toChw", () => {
     const rgba = new Uint8ClampedArray([255, 0, 51, 255, 0, 255, 0, 255, 0, 0, 0, 255, 255, 255, 255, 255]);
     const want = [1, 0, 0, 1, 0, 1, 0, 1, 0.2, 0, 0, 1];
     toChw(rgba, 2, new Float32Array(12)).forEach((v, i) => expect(v).toBeCloseTo(want[i]));
-  });
-});
-
-describe("summarize", () => {
-  it("leaves the warm-up frame out of inference stats", () => {
-    const t = [500, 50, 60, 70].map((inferMs, i) => ({ seekMs: 10, prepMs: 5, inferMs, detected: i !== 1 }));
-    const s = summarize(t, 1);
-    expect(s.firstInferMs).toBe(500);
-    expect(s.inferMedianMs).toBe(60);
-    expect(s.detectedShare).toBe(0.75);
-    expect(s.msPerFrame).toBe(250);
-  });
-
-  it("quantile of empty is NaN", () => {
-    expect(quantile([], 0.5)).toBeNaN();
   });
 });

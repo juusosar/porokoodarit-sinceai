@@ -38,6 +38,7 @@ describe("analyzeVideo seek safety", () => {
     vi.useFakeTimers();
     vi.doMock("./landmarker", () => ({
       getPoseLandmarker: async () => ({ detectForVideo: () => ({ landmarks: [] }) }),
+      poseTimeline: () => (s: number) => Math.round(s * 1000),
     }));
     vi.resetModules();
     const { analyzeVideo, SEEK_TIMEOUT_MS } = await import("./analyze");
@@ -52,6 +53,7 @@ describe("analyzeVideo seek safety", () => {
   it("stops when aborted", async () => {
     vi.doMock("./landmarker", () => ({
       getPoseLandmarker: async () => ({ detectForVideo: () => ({ landmarks: [] }) }),
+      poseTimeline: () => (s: number) => Math.round(s * 1000),
     }));
     vi.resetModules();
     const { analyzeVideo } = await import("./analyze");

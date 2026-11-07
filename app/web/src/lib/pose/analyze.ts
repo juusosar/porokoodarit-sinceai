@@ -1,5 +1,5 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
-import { getPoseLandmarker } from "./landmarker";
+import { getPoseLandmarker, poseTimeline } from "./landmarker";
 import { tempoFromWristY, type Tempo } from "./tempo";
 
 export type PoseFrame = { t: number; landmarks: NormalizedLandmark[] | null };
@@ -94,14 +94,12 @@ export async function analyzeVideo(
   const duration = Math.min(video.duration, MAX_SECONDS);
   const n = Math.floor(duration * sampleFps);
   const frames: PoseFrame[] = [];
-  let lastTs = -1;
+  const ts = poseTimeline();
   for (let i = 0; i < n; i++) {
     if (signal?.aborted) throw new DOMException("aborted", "AbortError");
     const t = i / sampleFps;
     await seek(video, t, signal);
-    const ts = Math.max(lastTs + 1, Math.round(t * 1000)); // timestamps must increase
-    lastTs = ts;
-    const res = lm.detectForVideo(video, ts);
+    const res = lm.detectForVideo(video, ts(t)); // shared instance: timestamps must keep increasing
     frames.push({ t, landmarks: res.landmarks[0] ?? null });
     onProgress?.((i + 1) / n);
   }
