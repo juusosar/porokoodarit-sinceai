@@ -61,6 +61,16 @@ def test_recheck_passes_through(fake):
     assert r.recheck and r.recheck.field == "carry"
 
 
+def test_only_one_recheck_per_chat(fake):
+    fake({"reply": "Still long?", "profile": {}, "recheck": {"field": "carry", "reason": "Long for >92."}})
+    msgs = [
+        {"role": "user", "text": "[Card 2: Your game] Score: >92, Carry: 180 yd"},
+        {"role": "assistant", "text": "Hmm, check that carry."},
+        {"role": "user", "text": "[Recheck carry] 175 yd"},
+    ]
+    assert CH.chat(CH.ChatRequest(messages=msgs, profile={})).recheck is None
+
+
 @pytest.mark.parametrize(
     "out",
     [
