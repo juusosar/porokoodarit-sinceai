@@ -264,3 +264,33 @@ def test_carry_read_and_loft_honesty():
     assert "SPEED_FROM_CARRY_TYPICAL_LOFT" in c
     s = F.run(FitRequest(step="profile", answers=full_answers(speed_7i_mph=None, carry_7i_yd=140, own_7i_loft_deg=28)))
     assert _codes(s, "shaft")["SPEED_FROM_CARRY_LOFT"]["loft"] == 28
+
+
+def test_head_never_claims_a_weak_priority():
+    s = F.run(FitRequest(step="p", answers=Answers(score_bucket=5, characteristics=["forged feel"], speed_7i_mph=55)))
+    assert "forged feel" not in str(_codes(s, "head").get("HEAD_PRIORITY", {}))
+
+
+def test_no_over92_claim_without_a_score():
+    s = F.run(FitRequest(step="p", answers=Answers(speed_7i_mph=88)))
+    assert "HEAD_OVER92_CAP" not in _codes(s, "head")
+
+
+def test_head_rival_is_named_only_when_in_contention():
+    import random
+
+    from takomo_api.engine import catalogue as C
+
+    rnd = random.Random(1)
+    chars = list(F.PRIORITY_RATING)
+    for _ in range(300):
+        a = Answers(
+            score_bucket=rnd.choice([None, 1, 2, 3, 4, 5]),
+            speed_7i_mph=rnd.uniform(45, 105),
+            characteristics=rnd.sample(chars, rnd.randint(0, 3)),
+        )
+        s = F.run(FitRequest(step="p", answers=a))
+        alt = _codes(s, "head").get("HEAD_ALT_STRONGER")
+        if alt:
+            allowed = {C.head(o.head)["name"] for o in s.head_options if o.probability >= 0.1}
+            assert alt["alternative"] in allowed
