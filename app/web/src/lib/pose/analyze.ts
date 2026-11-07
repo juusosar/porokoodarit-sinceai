@@ -54,9 +54,25 @@ export function analyzeFrames(frames: PoseFrame[], fps: number): SwingAnalysis {
   }
 }
 
-function seek(video: HTMLVideoElement, t: number): Promise<void> {
-  return new Promise((resolve) => {
-    video.addEventListener("seeked", () => resolve(), { once: true });
+export const SEEK_TIMEOUT_MS = 3000;
+
+function seek(video: HTMLVideoElement, t: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const done = (err?: Error) => {
+      clearTimeout(timer);
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("error", onError);
+      signal?.removeEventListener("abort", onAbort);
+      if (err) reject(err);
+      else resolve();
+    };
+    const onSeeked = () => done();
+    const onError = () => done(new Error("video could not be decoded"));
+    const onAbort = () => done(new DOMException("aborted", "AbortError"));
+    const timer = setTimeout(() => done(new Error("video seek timed out")), SEEK_TIMEOUT_MS);
+    video.addEventListener("seeked", onSeeked);
+    video.addEventListener("error", onError);
+    signal?.addEventListener("abort", onAbort);
     video.currentTime = t;
   });
 }
@@ -68,7 +84,11 @@ function seek(video: HTMLVideoElement, t: number): Promise<void> {
  */
 export async function analyzeVideo(
   video: HTMLVideoElement,
-  { sampleFps = 30, onProgress }: { sampleFps?: number; onProgress?: (share: number) => void } = {},
+  {
+    sampleFps = 30,
+    onProgress,
+    signal,
+  }: { sampleFps?: number; onProgress?: (share: number) => void; signal?: AbortSignal } = {},
 ): Promise<SwingAnalysis> {
   const lm = await getPoseLandmarker();
   const duration = Math.min(video.duration, MAX_SECONDS);
@@ -76,8 +96,9 @@ export async function analyzeVideo(
   const frames: PoseFrame[] = [];
   let lastTs = -1;
   for (let i = 0; i < n; i++) {
+    if (signal?.aborted) throw new DOMException("aborted", "AbortError");
     const t = i / sampleFps;
-    await seek(video, t);
+    await seek(video, t, signal);
     const ts = Math.max(lastTs + 1, Math.round(t * 1000)); // timestamps must increase
     lastTs = ts;
     const res = lm.detectForVideo(video, ts);

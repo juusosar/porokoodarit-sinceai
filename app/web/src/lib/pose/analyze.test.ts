@@ -32,3 +32,32 @@ describe("analyzeFrames", () => {
     expect(a.error).toMatch(/not visible/);
   });
 });
+
+describe("analyzeVideo seek safety", () => {
+  it("rejects instead of hanging when a seek never completes", async () => {
+    vi.useFakeTimers();
+    vi.doMock("./landmarker", () => ({
+      getPoseLandmarker: async () => ({ detectForVideo: () => ({ landmarks: [] }) }),
+    }));
+    vi.resetModules();
+    const { analyzeVideo, SEEK_TIMEOUT_MS } = await import("./analyze");
+    const video = Object.assign(new EventTarget(), { duration: 2, currentTime: 0 }) as unknown as HTMLVideoElement;
+    const p = analyzeVideo(video);
+    const check = expect(p).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(SEEK_TIMEOUT_MS + 10);
+    await check;
+    vi.useRealTimers();
+  });
+
+  it("stops when aborted", async () => {
+    vi.doMock("./landmarker", () => ({
+      getPoseLandmarker: async () => ({ detectForVideo: () => ({ landmarks: [] }) }),
+    }));
+    vi.resetModules();
+    const { analyzeVideo } = await import("./analyze");
+    const ctrl = new AbortController();
+    ctrl.abort();
+    const video = Object.assign(new EventTarget(), { duration: 2, currentTime: 0 }) as unknown as HTMLVideoElement;
+    await expect(analyzeVideo(video, { signal: ctrl.signal })).rejects.toThrow(/aborted/);
+  });
+});

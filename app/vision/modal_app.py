@@ -5,6 +5,9 @@ Privacy contract (see app/docs/DATA_PRIVACY.md):
 - Clip lives in a temp file for the duration of the request, then is deleted. Nothing is stored.
 - Returns numbers only (club-head path per frame + summary), never images.
 
+Exposed only via modal.method (called from the API with Modal credentials), never a public web
+endpoint; add auth before any web endpoint.
+
 Deploy:  modal deploy app/vision/modal_app.py   (needs a Modal account; not done yet, no deploys pre-approved)
 """
 
@@ -19,7 +22,7 @@ app = modal.App("takomo-club-tracking")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("libgl1", "libglib2.0-0")
-    .pip_install("ultralytics>=8.3", "opencv-python-headless>=4.10", "fastapi[standard]>=0.115")
+    .pip_install("ultralytics>=8.3", "opencv-python-headless>=4.10")
     .add_local_file("swingtrace-yolo11m.pt", "/models/swingtrace-yolo11m.pt")
 )
 

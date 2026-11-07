@@ -19,28 +19,50 @@ export function Swing() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<SwingAnalysis | null>(null);
-  const [src, setSrc] = useState<string | null>(null);
+  const [hasVideo, setHasVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const urlRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     getPoseLandmarker().catch(() => undefined); // warm up model while the user reads
+    return () => {
+      abortRef.current?.abort();
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
   }, []);
-  useEffect(() => () => void (src && URL.revokeObjectURL(src)), [src]);
 
-  async function onFile(file: File | undefined) {
-    if (!file) return;
+  // Runs inside the file-pick gesture: iOS Safari only loads an unplayed video after a user gesture.
+  function onFile(file: File | undefined) {
+    const video = videoRef.current;
+    if (!file || !video) return;
+    abortRef.current?.abort();
+    setMeasurement("backswing_s", null);
+    setMeasurement("downswing_s", null);
     setResult(null);
+    setProgress(0);
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    urlRef.current = URL.createObjectURL(file);
+    video.src = urlRef.current;
+    video.load();
+    video
+      .play()
+      .then(() => video.pause())
+      .catch(() => undefined);
+    setHasVideo(true);
     setPhase("loading");
-    setSrc(URL.createObjectURL(file));
   }
 
   async function onLoaded() {
     const video = videoRef.current;
     if (!video || phase !== "loading") return;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setPhase("analyzing");
     try {
-      const r = await analyzeVideo(video, { onProgress: setProgress });
+      const r = await analyzeVideo(video, { onProgress: setProgress, signal: ctrl.signal });
+      if (ctrl.signal.aborted) return;
       setResult(r);
       if (r.tempo) {
         const sd = r.tempo.frameUncertaintyS + TEMPO_EXTRA_SD_S;
@@ -51,8 +73,8 @@ export function Swing() {
         setPhase("error");
       }
       video.currentTime = r.window?.start ?? 0;
-    } catch {
-      setPhase("error");
+    } catch (e) {
+      if (!ctrl.signal.aborted && (e as Error).name !== "AbortError") setPhase("error");
     }
   }
 
@@ -63,8 +85,10 @@ export function Swing() {
     if (!video || !canvas || !result) return;
     let raf = 0;
     const draw = () => {
-      canvas.width = video.clientWidth;
-      canvas.height = video.clientHeight;
+      if (canvas.width !== video.clientWidth || canvas.height !== video.clientHeight) {
+        canvas.width = video.clientWidth;
+        canvas.height = video.clientHeight;
+      }
       const i = Math.min(result.frames.length - 1, Math.round(video.currentTime * result.fps));
       drawSkeleton(canvas, result.frames[i]?.landmarks ?? null);
       raf = requestAnimationFrame(draw);
@@ -73,6 +97,7 @@ export function Swing() {
     return () => cancelAnimationFrame(raf);
   }, [result]);
 
+  const busy = phase === "loading" || phase === "analyzing";
   const t = result?.tempo;
   return (
     <div className="space-y-5">
@@ -82,32 +107,40 @@ export function Swing() {
         <span className="text-foreground">Your video stays on this phone.</span> Only timing numbers are sent.
       </p>
 
-      <label className={cn(buttonVariants({ variant: phase === "done" ? "outline" : "default" }), "w-full cursor-pointer")}>
-        {phase === "done" ? "Try another swing" : "Film or pick your swing"}
+      <label
+        aria-disabled={busy}
+        className={cn(
+          buttonVariants({ variant: phase === "done" ? "outline" : "default" }),
+          "w-full",
+          busy ? "pointer-events-none opacity-50" : "cursor-pointer",
+        )}
+      >
+        {phase === "done" ? "Try another swing" : busy ? "Reading…" : "Film or pick your swing"}
         <input
           type="file"
           accept="video/*"
           capture="environment"
           className="sr-only"
-          onChange={(e) => onFile(e.target.files?.[0])}
+          disabled={busy}
+          onChange={(e) => {
+            onFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
         />
       </label>
 
-      {src && (
-        <div className="relative bg-black">
-          <video
-            ref={videoRef}
-            src={src}
-            muted
-            playsInline
-            controls={phase === "done"}
-            preload="auto"
-            onLoadedData={onLoaded}
-            className="block w-full"
-          />
-          <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />
-        </div>
-      )}
+      <div className={cn("relative bg-black", !hasVideo && "hidden")}>
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          controls={phase === "done"}
+          preload="auto"
+          onLoadedData={onLoaded}
+          className="block w-full"
+        />
+        <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden />
+      </div>
 
       {phase === "analyzing" && (
         <div role="status" className="space-y-1">
@@ -142,9 +175,7 @@ export function Swing() {
         </p>
       )}
 
-      {CLUB_TRACKING && phase === "done" && (
-        <p className="text-xs text-muted-foreground">Club tracking: coming soon.</p>
-      )}
+      {CLUB_TRACKING && phase === "done" && <p className="text-xs text-muted-foreground">Club tracking: coming soon.</p>}
 
       <div className="flex gap-3">
         <Link to="/launch-monitor" className={buttonVariants()}>
