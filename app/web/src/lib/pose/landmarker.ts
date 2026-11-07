@@ -29,4 +29,24 @@ export function getPoseLandmarker(): Promise<PoseLandmarker> {
   return instance;
 }
 
+let lastTs = -1;
+/** VIDEO mode needs strictly increasing timestamps on the shared instance, across all callers and runs. */
+export function nextPoseTs(desiredMs = 0): number {
+  lastTs = Math.max(lastTs + 1, Math.round(desiredMs));
+  return lastTs;
+}
+
+/**
+ * Timestamps for one pass over a video: real media spacing (MediaPipe's landmark smoothing uses it), shifted so they
+ * continue after anything already sent to the shared instance.
+ */
+export function poseTimeline(): (mediaS: number) => number {
+  const base = lastTs + 1;
+  let t0: number | null = null;
+  return (mediaS) => {
+    t0 ??= mediaS;
+    return nextPoseTs(base + (mediaS - t0) * 1000);
+  };
+}
+
 export { PoseLandmarker };

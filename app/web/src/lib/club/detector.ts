@@ -97,30 +97,38 @@ export function getClubDetector(): Promise<ClubDetector> {
 let inputBuf: Float32Array<ArrayBuffer> | null = null;
 let inputTensor: ort.Tensor | null = null;
 
-/** One frame: letterbox the current video frame onto `canvas`, run the model, return the shaft box + timings. */
-export async function detectFrame(
+type Canvas2D = HTMLCanvasElement | OffscreenCanvas;
+
+/**
+ * Detect on a canvas that already holds the INPUT x INPUT letterboxed frame (e.g. decoded + resized by mediabunny).
+ * Only a 640x640 pixel read: no full-resolution copy.
+ */
+export async function detectLetterboxed(
   det: ClubDetector,
-  video: HTMLVideoElement,
-  canvas: HTMLCanvasElement,
+  canvas: Canvas2D,
+  lb: Letterbox,
 ): Promise<{ box: Detection | null; prepMs: number; inferMs: number }> {
   const t0 = performance.now();
-  const lb = letterbox(video.videoWidth, video.videoHeight);
-  if (canvas.width !== INPUT || canvas.height !== INPUT) {
-    canvas.width = INPUT; // resizing resets the context: only once
-    canvas.height = INPUT;
-  }
-  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  // padding grey 114 like Ultralytics training (mediabunny pads black)
   ctx.fillStyle = "rgb(114,114,114)";
-  ctx.fillRect(0, 0, INPUT, INPUT);
-  ctx.drawImage(video, lb.padX, lb.padY, lb.w * lb.scale, lb.h * lb.scale);
+  const px = Math.floor(lb.padX);
+  const py = Math.floor(lb.padY);
+  if (px > 0) {
+    ctx.fillRect(0, 0, px, INPUT);
+    ctx.fillRect(INPUT - px, 0, px, INPUT);
+  }
+  if (py > 0) {
+    ctx.fillRect(0, 0, INPUT, py);
+    ctx.fillRect(0, INPUT - py, INPUT, py);
+  }
   inputBuf ??= new Float32Array(3 * INPUT * INPUT);
   inputTensor ??= new ort.Tensor("float32", inputBuf, [1, 3, INPUT, INPUT]);
   toChw(ctx.getImageData(0, 0, INPUT, INPUT).data, INPUT, inputBuf);
-  const input = inputTensor;
   const t1 = performance.now();
   let out: ort.Tensor | undefined;
   try {
-    out = (await det.session.run({ [det.session.inputNames[0]]: input }))[det.session.outputNames[0]];
+    out = (await det.session.run({ [det.session.inputNames[0]]: inputTensor }))[det.session.outputNames[0]];
     const data = (await out.getData()) as Float32Array;
     const t2 = performance.now();
     return { box: bestBox(data, out.dims, lb), prepMs: t1 - t0, inferMs: t2 - t1 };
