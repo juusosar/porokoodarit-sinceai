@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from . import registry
 from .base import LLMError, LLMRequest
@@ -72,9 +72,18 @@ class ChatMessage(BaseModel):
     text: str = Field(max_length=2000)
 
 
+MAX_TOTAL_CHARS = 20_000
+
+
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=60)
     profile: dict[str, FieldValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _cap(self) -> ChatRequest:
+        if sum(len(m.text) for m in self.messages) > MAX_TOTAL_CHARS:
+            raise ValueError("conversation too long")
+        return self
 
 
 class Recheck(BaseModel):
@@ -105,17 +114,53 @@ def system_prompt() -> str:
     return (HERE / "prompts" / "chat.md").read_text()
 
 
-_AGE = re.compile(r"\b(how old|your age|age\?)", re.I)
+_AGE = re.compile(r"\b(how old|your age|age\?|years? olds?)", re.I)
 _MPH = re.compile(r"\d+\s*mph", re.I)
+# The host gathers the profile; specs come from the engine later. No head names, flex, lie or length calls.
+_SPEC = re.compile(
+    r"\b(101|201t?|301)\s*(mkii|cb|mb)?\b|\b(stiff|regular|senior|x-stiff)\s+(flex|shaft)\b"
+    r"|\b(upright|flat)\s+lie\b|\b\d(\.\d)?\s*(°|deg)|\b(midsize|oversize|undersize)\b",
+    re.I,
+)
 
 
 def guard(out: _LLMOut) -> str | None:
-    """Problem string if the reply breaks a hard rule."""
-    if _AGE.search(out.reply):
-        return "asks age"
-    if _MPH.search(out.reply):
+    """Problem string if the reply (or the recheck note shown on the card) breaks a hard rule."""
+    text = " ".join([out.reply, out.recheck.reason if out.recheck else ""])
+    if _AGE.search(text):
+        return "mentions age"
+    if _MPH.search(text):
         return "quotes mph"
+    if m := _SPEC.search(text):
+        return f"spec talk: {m.group(0)}"
     return None
+
+
+def _after_card4(req: ChatRequest) -> bool:
+    return any(m.role == "user" and m.text.startswith("[Card 4") for m in req.messages)
+
+
+def _needs_confirm(req: ChatRequest) -> bool:
+    """Turns after which the UI shows Yes/No: card 4, a recheck redo or free text once the cards are done."""
+    last = req.messages[-1].text.strip()
+    return _after_card4(req) and not last.lower().startswith("no, something")
+
+
+_BUGS = (
+    (re.compile(r"slice|leak right|hook|pulls left|ball up|lose distance|mishit|thin|fat", re.I), "forgiveness"),
+    (re.compile(r"lose distance|ball up|more distance", re.I), "distance"),
+    (re.compile(r"inconsistent distances", re.I), "distance control"),
+    (re.compile(r"harsh", re.I), "forged feel"),
+)
+
+
+def wants_from_bugs(text: str) -> str | None:
+    """Card 4 picks -> top-3 priorities, same vocabulary as the engine (template fallback only)."""
+    out: list[str] = []
+    for pat, want in _BUGS:
+        if pat.search(text) and want not in out:
+            out.append(want)
+    return ", ".join(w.capitalize() if i == 0 else w for i, w in enumerate(out[:3])) or None
 
 
 def _summary(profile: dict[str, FieldValue]) -> str:
@@ -136,12 +181,13 @@ def _summary(profile: dict[str, FieldValue]) -> str:
 def template_reply(req: ChatRequest, why: str | None, t0: float) -> ChatReply:
     """Scripted host lines: keeps the card flow working without an LLM."""
     last = req.messages[-1].text.strip()
-    if last.startswith("[Card 4") or last.lower().startswith("no, something"):
-        reply = (
-            "Tell me which part is off and I'll fix it."
-            if last.lower().startswith("no, something")
-            else _summary(req.profile)
-        )
+    profile: dict[str, FieldValue] = {}
+    if last.startswith("[Card 4") and (w := wants_from_bugs(last)):
+        profile["wants"] = FieldValue(value=w[:40], status="guess")
+    if last.lower().startswith("no, something"):
+        reply = "Tell me which part is off and I'll fix it."
+    elif _needs_confirm(req):
+        reply = _summary(req.profile | profile)
     elif last.startswith("[Card 1"):
         reply = "Nice, basics locked in. Now your game."
     elif last.startswith("[Card 2"):
@@ -150,8 +196,6 @@ def template_reply(req: ChatRequest, why: str | None, t0: float) -> ChatReply:
         reply = "Solid. Last one: what bugs you about your irons?"
     elif last.startswith("[Recheck"):
         reply = "Thanks, updated."
-    elif all(f in req.profile for f in ("hand", "score", "height")):
-        reply = _summary(req.profile)
     else:
         reply = "Got it. Use the card below and we'll keep moving."
     return ChatReply(
@@ -159,6 +203,7 @@ def template_reply(req: ChatRequest, why: str | None, t0: float) -> ChatReply:
         provider="template",
         latency_ms=int((time.perf_counter() - t0) * 1000),
         reply=reply,
+        profile=profile,
         fallback_reason=why,
     )
 
@@ -208,12 +253,16 @@ def chat(req: ChatRequest) -> ChatReply:
         log.warning("chat fallback model=%s guard: %s", cfg.model, problem)
         return template_reply(req, _public(f"guard: {problem}"), t0)
     profile = {k: v for k, v in out.profile.items() if k in PROFILE_FIELDS and v is not None}
+    reply = out.reply
+    # The UI only shows Yes/No after this exact question: never leave the golfer without buttons.
+    if _needs_confirm(req) and not out.recheck and CONFIRM.lower() not in reply.lower():
+        reply = f"{reply.rstrip()} {CONFIRM}"
     return ChatReply(
         source="llm",
         provider=cfg.provider,
         model=cfg.model,
         latency_ms=int((time.perf_counter() - t0) * 1000),
-        reply=out.reply,
+        reply=reply,
         profile=profile,
         recheck=out.recheck,
     )

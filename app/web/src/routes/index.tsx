@@ -8,7 +8,7 @@ import { useFitting } from "@/hooks/use-fitting";
 import { saveFitting } from "@/lib/fitting.functions";
 import { getFittingToken, startNewFitting } from "@/lib/fitting-session";
 import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
-import { useHostChat } from "@/hooks/use-host-chat";
+import { LOCAL_PREFIX, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
 
 export const Route = createFileRoute("/")({
@@ -139,7 +139,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
     setResolved((s) => new Set(s).add(recheck.id));
     if (a) {
       setOverrides((p) => ({ ...p, ...a }));
-      sendMessage({ text: `[Recheck: ${recheck.q.label}] ${a[recheck.q.key]?.value}` });
+      sendMessage({ text: `[Recheck: ${recheck.q.label}] ${a[recheck.q.key]?.value}`, profile: { ...profileRef.current, ...a } });
     } else {
       sendMessage({ text: `[Recheck: ${recheck.q.label}] Keeping my original answer` });
     }
@@ -150,7 +150,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
     setCardAnswers((p) => ({ ...p, ...a }));
     setCardIdx((i) => i + 1);
     const summary = card.questions.filter((q) => a[q.key]).map((q) => `${q.label}: ${a[q.key]?.value}`).join(", ");
-    sendMessage({ text: `[Card ${card.id}: ${card.title}] ${summary}` });
+    sendMessage({ text: `[Card ${card.id}: ${card.title}] ${summary}`, profile: { ...cardAnswers, ...profileRef.current, ...a } });
   };
 
   const profile = useMemo(() => {
@@ -280,7 +280,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
           {pacing.questionsReady && !recheck && cardIdx > CARDS.length && (() => {
             const last = messages[messages.length - 1];
             const text = last?.role === "assistant" ? last.parts.map((p) => (p.type === "text" ? p.text : "")).join("") : "";
-            if (!/get that right|did i get|sound right|is that right/i.test(text)) return null;
+            if (!/get that right|did i get|sound right|is that right/i.test(text) && !last?.id.startsWith(LOCAL_PREFIX)) return null;
             return (
               <div data-scroll-reveal className="flex gap-2 pl-11">
                 <Button type="button" disabled={saving} onClick={proceed} className="h-auto whitespace-normal rounded-none px-5 py-2.5 font-display text-sm font-bold uppercase italic tracking-wide">{saving ? "Saving…" : "Yes, let's continue"}</Button>
@@ -288,7 +288,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
               </div>
             );
           })()}
-          {error && <p className="text-sm text-destructive">Grant lost signal for a sec. Try sending again.</p>}
+          {error && <p role="status" className="text-sm text-destructive">Grant couldn't reach the fitting service just now. Your answers are saved; keep going or try again in a moment.</p>}
           {saveError && <p role="alert" className="text-sm text-destructive">Couldn't save your fitting. Your answers are still here; please try again before continuing.</p>}
         </div>
 

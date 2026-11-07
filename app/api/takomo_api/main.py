@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
         expose_headers=["X-Cache"],
     )
     limiter = RateLimiter(settings.explain_rate_per_min)
-    chat_limiter = RateLimiter(settings.explain_rate_per_min)
+    chat_limiter = RateLimiter(settings.chat_rate_per_min)
     # Voice (TTS) is a self-contained module: TAKOMO_TTS_PROVIDER=none leaves no route and no token behind.
     voice_on = voice.enabled()
     if voice_on:

@@ -11,6 +11,10 @@ function textOf(m: UIMessage) {
   return m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
 }
 
+/** Id prefix of host lines written by the app when the API can't be reached. */
+export const LOCAL_PREFIX = "local";
+const OFFLINE_LINE = "Lost the signal for a sec, but I've got your answers. Let's keep going.";
+
 let seq = 0;
 const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
@@ -29,7 +33,7 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
   useEffect(() => () => ctrl.current?.abort(), []);
 
   const sendMessage = useCallback(
-    ({ text }: { text: string }) => {
+    ({ text, profile: override }: { text: string; profile?: Profile }) => {
       const user: UIMessage = { id: id("u"), role: "user", parts: [{ type: "text", text: text.slice(0, MAX_TEXT) }] };
       const history = [...latest.current, user];
       latest.current = history;
@@ -44,7 +48,7 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
         .map((m) => ({ role: m.role as "user" | "assistant", text: textOf(m).slice(0, MAX_TEXT) }))
         .filter((m) => m.text)
         .slice(-MAX_TURNS);
-      postChat(turns, profile(), c.signal).then(
+      postChat(turns, override ?? profile(), c.signal).then(
         (r) => {
           if (c.signal.aborted) return;
           const callId = id("call");
@@ -59,6 +63,10 @@ export function useHostChat({ messages: initial, profile }: { messages: UIMessag
         },
         (e: unknown) => {
           if (c.signal.aborted) return;
+          // Keep the cards moving: a local host line instead of a dead end (answers are already saved).
+          const next = [...latest.current, { id: id(LOCAL_PREFIX), role: "assistant" as const, parts: [{ type: "text" as const, text: OFFLINE_LINE }] }];
+          latest.current = next;
+          setMessages(next);
           setError(e instanceof Error ? e : new Error(String(e)));
           setStatus("error");
         },
