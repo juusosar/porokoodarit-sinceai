@@ -12,7 +12,7 @@ import { fittingSchema, type Profile } from "@/lib/fitting-schema";
 import { getFittingToken } from "@/lib/fitting-session";
 import { activeEnrichment, enrichmentSchema, type Enrichment } from "@/lib/enrichment-schema";
 import { LOCAL_EVENT, readLocal } from "@/lib/local-store";
-import { PARTS } from "@/lib/parts";
+import { PARTS, confidenceView } from "@/lib/parts";
 import { readSwing, type SwingRecord } from "@/lib/swing-store";
 import type { FitState } from "@/types/fit-state";
 
@@ -154,7 +154,7 @@ export function LiveFitCard() {
                 <dt className="truncate text-[10px] uppercase text-muted-foreground">{name}</dt>
                 <dd className="truncate font-medium">{p?.value == null ? "—" : p.label}</dd>
                 <div className="mt-1 h-1 bg-muted" aria-hidden>
-                  <div className="h-1 bg-primary transition-all" style={{ width: `${Math.round((p?.confidence ?? 0) * 100)}%` }} />
+                  <div className="h-1 bg-primary transition-all" style={{ width: `${confidenceView(p?.confidence).pct}%` }} />
                 </div>
               </div>
             );
