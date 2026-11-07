@@ -100,3 +100,51 @@ def test_endpoint_and_limits():
         assert c.post("/v1/chat", json=long).status_code == 422
     finally:
         registry.reset()
+
+
+def card4(extra=""):
+    return CH.ChatRequest(
+        messages=[
+            {"role": "user", "text": "[Card 3: Measurements] Height: 178 cm"},
+            {"role": "assistant", "text": "Solid."},
+            {"role": "user", "text": f"[Card 4: What bugs you] Slice / shots leak right, Clubs feel harsh{extra}"},
+        ],
+        profile={"hand": {"value": "Right", "status": "sure"}},
+    )
+
+
+def test_confirm_question_always_ends_the_summary_turn(fake):
+    fake({"reply": "Slicer with harsh clubs, got it. Anything else bugging you?", "profile": {}})
+    r = CH.chat(card4())
+    assert r.source == "llm" and r.reply.endswith(CH.CONFIRM)
+
+
+@pytest.mark.parametrize(
+    "out",
+    [
+        {"reply": "ok", "profile": {}, "recheck": {"field": "carry", "reason": "Most 45 year olds carry less."}},
+        {"reply": "ok", "profile": {}, "recheck": {"field": "carry", "reason": "That's 90 mph territory."}},
+        {"reply": "You'll love the 201 MKII.", "profile": {}},
+        {"reply": "Sounds like stiff flex to me.", "profile": {}},
+        {"reply": "Probably 2° upright.", "profile": {}},
+    ],
+)
+def test_guard_covers_recheck_note_and_spec_talk(fake, out):
+    fake(out)
+    assert CH.chat(req()).source == "template"
+
+
+def test_template_keeps_card4_priorities():
+    registry.set_role("chat", registry.RoleConfig("template", "-"))
+    try:
+        r = CH.chat(card4())
+        assert r.profile["wants"].value == "Forgiveness, forged feel"
+        assert "priorities Forgiveness" in r.reply and r.reply.endswith(CH.CONFIRM)
+    finally:
+        registry.reset()
+
+
+def test_total_size_capped():
+    msgs = [{"role": "user", "text": "x" * 2000}] * 11
+    with pytest.raises(ValueError):
+        CH.ChatRequest(messages=msgs)

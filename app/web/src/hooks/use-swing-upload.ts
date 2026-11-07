@@ -3,7 +3,7 @@ import { getFittingToken } from '@/lib/fitting-session';
 import { inspectVideo } from '@/lib/video-metadata';
 import { analyzeVideo, type SwingAnalysis } from '@/lib/pose/analyze';
 import { getPoseLandmarker } from '@/lib/pose/landmarker';
-import { deleteSwing, readSwing, saveSwing, type SwingRecord } from '@/lib/swing-store';
+import { deleteSwing, readSwing, saveSwing, swingRecordSchema, type SwingRecord } from '@/lib/swing-store';
 
 // Lab error model for video tempo: +-1 frame plus 12 ms (same as the legacy swing step).
 const TEMPO_EXTRA_SD_S = 0.012;
@@ -71,16 +71,19 @@ export function useSwingUpload(enabled: boolean) {
       if (c.signal.aborted) return;
       setAnalysis(result);
       const t = result.tempo;
+      const candidate = t ? { backswingS: t.backswingS, downswingS: t.downswingS, ratio: t.ratio, sd: t.frameUncertaintyS + TEMPO_EXTRA_SD_S } : null;
+      // Pose can misread a swing (e.g. impact 1 frame after top): implausible timing is dropped, not saved.
+      const plausible = !!candidate && swingRecordSchema.shape.tempo.safeParse(candidate).success;
       const saved: SwingRecord = {
         filename: file.name, size: file.size, encodedFps: timing?.encodedFps ?? null, analyzedAt: new Date().toISOString(),
-        tempo: t && t.backswingS > 0 && t.downswingS > 0 ? { backswingS: t.backswingS, downswingS: t.downswingS, ratio: t.ratio, sd: t.frameUncertaintyS + TEMPO_EXTRA_SD_S } : null,
+        tempo: plausible ? candidate : null,
       };
       saveSwing(getFittingToken(), saved);
       setRecord(saved); setProgress(100); setPhase('saved');
-      if (!saved.tempo) setError(`Couldn’t read your swing timing${result.error ? ` (${result.error})` : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
+      if (!saved.tempo) setError(`Couldn’t read your swing timing${result.error ? ` (${result.error})` : candidate ? ' (timing looked off)' : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
     } catch (e) {
       if (c.signal.aborted || (e as Error).name === 'AbortError') { setPhase('preview'); return; }
-      setError(e instanceof Error ? e.message : 'Could not read your video. Try again.'); setPhase('preview');
+      setError(e instanceof Error && !e.message.startsWith('[') ? e.message : 'Could not read your video. Try again.'); setPhase('preview');
     } finally { setBusy(false); video.removeAttribute('src'); video.load(); }
   }
   async function discard() {
