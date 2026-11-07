@@ -1,0 +1,34 @@
+# Full stack locally: docker compose up --build   (from app/)
+# Web http://localhost:3000, API http://localhost:8080. API config: api/.env (copy from api/.env.example).
+services:
+  api:
+    build: ./api
+    env_file:
+      - path: ./api/.env
+        required: false
+    environment:
+      TAKOMO_ENV: ${TAKOMO_ENV:-local}
+      TAKOMO_CORS_ORIGINS: ${TAKOMO_CORS_ORIGINS:-http://localhost:3000}
+      PORT: "8080"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    environment:
+      # URL the *browser* uses to reach the API.
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+      VITE_SHOP_URL: ${VITE_SHOP_URL:-https://takomogolf.com}
+      VITE_CLUB_TRACKING: ${VITE_CLUB_TRACKING:-false}
+    ports:
+      - "3000:8080"
+    depends_on:
+      api:
+        condition: service_healthy

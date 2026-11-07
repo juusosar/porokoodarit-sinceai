@@ -5,10 +5,11 @@ import { EvidenceTag } from "@/components/fit/FitCard";
 import { PARTS } from "@/lib/parts";
 import { useFit } from "@/lib/fit-store";
 import { renderReason } from "@/lib/reasons";
+import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 // Order links are a stub until the Shopify product/variant mapping exists (POR-18 follow-up).
-const SHOP_URL = import.meta.env.VITE_SHOP_URL ?? "https://takomogolf.com";
+const SHOP_URL = env("VITE_SHOP_URL", "https://takomogolf.com");
 
 function speak(text: string) {
   try {
