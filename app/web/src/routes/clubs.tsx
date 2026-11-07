@@ -11,6 +11,7 @@ import { readHeadSelection, saveHeadSelection } from '@/lib/head-selection.funct
 import { getFittingToken } from '@/lib/fitting-session';
 import { readSwing } from '@/lib/swing-store';
 import { renderReason } from '@/lib/reasons';
+import { confidenceView } from '@/lib/parts';
 import { HeadSelectionOverlay } from '@/components/HeadSelectionOverlay';
 import { FittingData } from '@/components/FittingData';
 import { ClubReveal } from '@/components/ClubReveal';
@@ -53,13 +54,13 @@ function Clubs() {
   const primaryId = headIdSchema.safeParse(headPart?.value).data ?? order[0] ?? '101-mkii';
   const secondaryId = order.find(h => h !== primaryId) ?? (primaryId === '101-mkii' ? '201-mkii' : '101-mkii');
   const primary = HEADS[primaryId], secondary = HEADS[secondaryId];
-  const why = fit.explanation?.parts['head'] || (headPart?.reasons ?? []).slice(0, 2).map(renderReason).join(' ');
+  const why = (fit.explanation?.source === 'llm' ? fit.explanation.parts['head'] : undefined) || (headPart?.reasons ?? []).slice(0, 2).map(renderReason).join(' ');
   const close = headPart?.close_call;
   const loading = fitting.loading || (confirmed && (extras.loading || fit.loading || (!state && !fit.error)));
   return <main className="enrichment-theme min-h-screen bg-background font-sans text-foreground"><header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-background px-5 py-4 md:px-8"><span className="font-display text-2xl font-bold italic">TAKOMO</span><span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><VoiceToggle /><span>Find my fit · <span className="text-primary">Step 4 / 4</span></span></span></header><section className="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-10">
     <div className="flex items-center gap-4 border-b border-border pb-6"><img src="/images/grant-avatar.png" alt="Grant" className="size-20 shrink-0 border border-primary object-cover" /><div><p className="text-xs uppercase tracking-widest text-primary">Grant · AI-assisted fitter</p><p className="mt-2 max-w-xl text-base leading-relaxed" aria-live="polite">{fit.explanation?.caption ?? 'Here’s your fit, and why. Every number comes from the fitting engine, not from me.'}</p>{fit.explanation && <HearItButton line={lineOf(fit.explanation)!} className="mt-1 text-xs text-primary underline" />}</div></div>
     {fitting.error ? <div role="alert" className="py-8"><p>Could not load your fitting. Your saved data is safe.</p><Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>Try again</Button></div> : !fitting.loading && !confirmed ? <p className="py-8">Confirm your profile with Grant first. <Link to="/" className="text-primary underline">Back to chat</Link></p> : fit.error ? <div role="alert" className="py-8"><p>The fitting engine didn’t answer. Your answers are saved on this device.</p><Button variant="outline" className="mt-4" onClick={fit.retry}>Try again</Button></div> : loading || !state ? <p className="flex items-center gap-2 py-8 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Calculating your fit…</p> : <>
-      <div className="mt-8 flex flex-wrap items-center gap-3"><p className="text-xs font-medium uppercase tracking-widest text-primary">01 · Your head</p><span className="ml-auto text-xs text-muted-foreground">Confidence {Math.round((headPart?.confidence ?? 0) * 100)}%{close ? ` · close call with ${close.alternative}` : ''}</span></div>
+      <div className="mt-8 flex flex-wrap items-center gap-3"><p className="text-xs font-medium uppercase tracking-widest text-primary">01 · Your head</p><span className="ml-auto text-xs text-muted-foreground">{confidenceView(headPart?.confidence).word} · {confidenceView(headPart?.confidence).pct}%{close ? ` · close call with ${close.alternative}` : ''}</span></div>
       <div className="mt-6 text-center"><h1 className="font-display text-6xl font-bold uppercase italic leading-none md:text-7xl">{primary.name} IRONS</h1><p className="mt-3 text-xs uppercase tracking-widest text-muted-foreground">{primary.set}</p></div>
       <ClubReveal image={primary.image} name={primary.name} />
       <div className="mx-auto mt-6 max-w-2xl text-center"><h2 className="font-display text-2xl font-bold uppercase italic text-primary">Why these for you?</h2><p className="mt-3 text-lg leading-relaxed">{why || primary.description}</p><p className="mt-3 text-xs text-muted-foreground">From your answers{swing?.tempo ? ', your swing video timing' : ''}{extras.data && !extras.data.skipped && extras.data.speed !== null ? ' and your launch monitor speed' : ''}. Close calls are shown, not hidden.</p></div>

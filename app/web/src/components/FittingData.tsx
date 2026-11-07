@@ -6,8 +6,8 @@ import type { Profile } from '@/lib/fitting-schema';
 import type { Enrichment } from '@/lib/enrichment-schema';
 import type { SwingRecord } from '@/lib/swing-store';
 import { renderReason } from '@/lib/reasons';
-import { EVIDENCE_LABEL } from '@/lib/parts';
-import type { FitState, PartState } from '@/types/fit-state';
+import { EVIDENCE_LABEL, confidenceView } from '@/lib/parts';
+import type { FitState, PartState, StockAdvice } from '@/types/fit-state';
 
 const SPEC_PARTS = [['shaft', 'Shaft & flex'], ['length', 'Club length'], ['lie', 'Lie angle'], ['grip', 'Grip size'], ['hand', 'Hand'], ['purchase', 'Stock or custom']] as const;
 
@@ -21,7 +21,7 @@ export function FittingData({ state, explanation, profile, extras, swing }: { st
     <h2><Button variant="ghost" aria-expanded={expanded} aria-controls="fitting-data" onClick={() => setExpanded(value => !value)} className="h-auto w-full justify-between gap-4 px-0 font-display text-2xl font-bold uppercase italic"><span>My fit, under the hood</span><ChevronDown className={`size-5 shrink-0 text-primary transition-transform ${expanded ? 'rotate-180' : ''}`} /></Button></h2>
     <div id="fitting-data" hidden={!expanded} className="pt-5">
       <div className="border-y border-primary/40 bg-primary/5 px-4 py-5"><p className="flex items-center gap-2 font-display text-xl font-bold uppercase italic"><ShieldCheck className="size-5 text-primary" />Evidence, not guesswork.</p><ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3 text-xs text-muted-foreground">{([[swing?.tempo ? 'Swing tempo · measured from video' : 'Swing video not analysed', !!swing?.tempo], [lm ? 'Club speed · launch monitor' : 'Club speed · estimated from carry', lm], [geometry ? 'Height & wrist · you said' : 'Geometry incomplete', geometry]] as const).map(([label, present]) => <li key={label} className="flex items-center gap-2">{present ? <Check className="size-4 text-primary" /> : <Circle className="size-3" />}{label}</li>)}</ul></div>
-      {SPEC_PARTS.map(([key, title], i) => { const part = state.parts[key]; return part ? <PartRow key={key} number={String(i + 1).padStart(2, '0')} title={title} part={part} note={explanation?.parts[key]} /> : null; })}
+      {SPEC_PARTS.map(([key, title], i) => { const part = state.parts[key]; return part ? <PartRow key={key} number={String(i + 1).padStart(2, '0')} title={title} part={part} note={explanation?.source === 'llm' ? explanation.parts[key] : undefined} advice={advice} /> : null; })}
       {advice && advice.blockers && advice.blockers.length > 0 && <div data-scroll-reveal className="border-b border-border py-6"><h3 className="text-xs font-medium uppercase tracking-widest">Why custom</h3><ul className="mt-3 space-y-2 text-sm text-muted-foreground">{advice.blockers.map(b => <li key={b.part}>{b.part}: {b.custom_value} (stock {b.stock_value}). {renderReason({ code: b.impact_code, params: b.params ?? {} })}</li>)}</ul>{advice.one_tweak_from_stock && <p className="mt-3 text-sm">One tweak away from stock: faster delivery and 30-day returns if you accept it.</p>}</div>}
       {state.warnings && state.warnings.length > 0 && <ul className="mt-6 space-y-2 border-l-2 border-primary pl-4 text-sm">{state.warnings.map(w => <li key={w.code}>{renderReason(w)}</li>)}</ul>}
       <details data-scroll-reveal className="mt-8 border-y border-border py-5"><summary className="cursor-pointer font-display text-xl font-bold uppercase italic">Your profile & source data</summary><dl className="mt-5 grid gap-4 sm:grid-cols-2">{Object.entries(profile).map(([key, answer]) => <div key={key}><dt className="text-xs uppercase text-muted-foreground">{key === 'development' ? 'Future outlook' : key}</dt><dd className="mt-1 break-words">{answer.value}{answer.status === 'guess' ? ' · Estimate' : ''}</dd></div>)}</dl>
@@ -32,13 +32,21 @@ export function FittingData({ state, explanation, profile, extras, swing }: { st
   </section>;
 }
 
-function PartRow({ number, title, part, note }: { number: string; title: string; part: PartState; note: string | undefined }) {
-  const pct = Math.round(part.confidence * 100);
+/** Stock-or-custom is advice, not a probability: say what it means instead of a % (POR-32). */
+function purchaseVerdict(advice: StockAdvice | null | undefined): string {
+  const n = advice?.blockers?.length ?? 0;
+  return n === 0 ? 'Stock fits you' : advice?.one_tweak_from_stock ? 'One tweak from stock' : 'Custom recommended';
+}
+
+function PartRow({ number, title, part, note, advice }: { number: string; title: string; part: PartState; note: string | undefined; advice: StockAdvice | null | undefined }) {
+  const { pct, word } = confidenceView(part.confidence);
+  const reasons = (part.reasons ?? []).map(renderReason);
   return <div data-scroll-reveal className="border-b border-border py-7">
     <div className="flex flex-wrap items-center gap-3"><span className="font-display text-2xl italic text-primary">{number}</span><h3 className="text-xs font-medium uppercase tracking-widest">{title}</h3><span className="ml-auto flex flex-wrap gap-1.5 text-xs text-muted-foreground">{(part.evidence ?? []).map(e => <span key={e} className="border border-border px-2 py-0.5">{EVIDENCE_LABEL[e]}</span>)}</span></div>
     <p className="mt-4 font-display text-3xl font-bold uppercase italic">{part.label}</p>
-    <div className="mt-3 flex items-center gap-3" aria-label={`Confidence ${pct}%`}><div className="h-1 w-40 bg-muted" aria-hidden="true"><div className="h-1 bg-primary" style={{ width: `${pct}%` }} /></div><span className="text-xs text-muted-foreground">{pct < 60 ? 'Likely' : 'Confident'} · {pct}%</span></div>
+    {part.part === 'purchase' ? <p className="mt-3 text-sm text-primary">{purchaseVerdict(advice)}</p> : <div className="mt-3 flex items-center gap-3" aria-label={`${word}, ${pct}%`}><div className="h-1 w-40 bg-muted" aria-hidden="true"><div className="h-1 bg-primary" style={{ width: `${pct}%` }} /></div><span className="text-xs text-muted-foreground">{word} · {pct}%</span></div>}
     {part.close_call && <p className="mt-3 text-sm">Close call: {part.close_call.alternative} is nearly as good a fit.</p>}
-    <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{note || (part.reasons ?? []).map(renderReason).join(' ')}</p>
+    {note && <p className="mt-3 max-w-2xl text-sm">{note}</p>}
+    {reasons.length > 0 && <ul className="mt-3 max-w-2xl list-disc space-y-1 pl-5 text-sm text-muted-foreground">{reasons.map(r => <li key={r}>{r}</li>)}</ul>}
   </div>;
 }
