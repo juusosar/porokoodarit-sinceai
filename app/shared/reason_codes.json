@@ -153,6 +153,54 @@
     "LIE_EFFECT": {
       "part": "lie",
       "text": "Each 1° off starts a 7-iron about {offline_yd} yd off line: {upright_dir} if too upright, {flat_dir} if too flat."
+    },
+    "SPEED_FROM_SCORE": {
+      "part": "shaft",
+      "text": "Speed estimated from your typical score. A launch monitor or carry number would firm it up."
+    },
+    "FLIGHT_FROM_LAUNCH": {
+      "part": "shaft",
+      "text": "Your launch monitor numbers say you need a {flight} ball flight."
+    },
+    "TEMPO_FROM_VIDEO": {
+      "part": "shaft",
+      "text": "Your swing video timing reads as a {tempo} tempo."
+    },
+    "TEMPO_VIDEO_UNCLEAR": {
+      "part": "shaft",
+      "text": "The swing video timing was unclear, so your own tempo answer counts more ({tempo})."
+    },
+    "LIE_FROM_BALL_LINE": {
+      "part": "lie",
+      "text": "Your ball-line test says {lie}. The mark exaggerates, so we scale it down."
+    },
+    "STOCK_CLOSE_CALL": {
+      "part": "purchase",
+      "text": "Standard is nearly as likely for {parts}, so a stock set (30-day returns) is worth considering."
+    },
+    "NEXT_LAUNCH_MONITOR": {
+      "part": "*",
+      "text": "Launch monitor numbers for your 7-iron would firm this up most."
+    },
+    "NEXT_BALL_LINE": {
+      "part": "*",
+      "text": "A ball-line test (five shots, one photo each) would show your lie at impact."
+    },
+    "NEXT_SWING_VIDEO": {
+      "part": "*",
+      "text": "A short swing video would measure your tempo on this device."
+    },
+    "NEXT_GLOVE": {
+      "part": "*",
+      "text": "Your glove size would firm up the grip size."
+    },
+    "NEXT_HEIGHT": {
+      "part": "*",
+      "text": "Your height would firm up the club length."
+    },
+    "NEXT_CARRY": {
+      "part": "*",
+      "text": "Your usual 7-iron carry would help estimate your swing speed."
     }
   }
 }
