@@ -8,7 +8,7 @@ from ..config import get_settings  # noqa: F401  (re-exported for explain)
 from .base import LLMProvider
 from .gemini import GeminiProvider
 
-ROLES = ("step_line", "final_walkthrough")
+ROLES = ("step_line", "final_walkthrough", "chat")
 
 
 @dataclass
@@ -36,7 +36,7 @@ def role_config(role: str) -> RoleConfig:
     if role in _overrides:
         return _overrides[role]
     s = get_settings()
-    model = s.llm_model_step if role == "step_line" else s.llm_model_final
+    model = s.llm_model_final if role == "final_walkthrough" else s.llm_model_step
     return RoleConfig(provider=s.llm_provider, model=model)
 
 
