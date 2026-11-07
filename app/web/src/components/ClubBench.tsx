@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { getClubDetector, hasShaderF16, type ClubDetector, type Detection } from "@/lib/club/detector";
-import { runClubBenchmark } from "@/lib/club/benchmark";
-import type { BenchSummary } from "@/lib/club/stats";
+import { getClubDetector, hasShaderF16, type ClubDetector } from "@/lib/club/detector";
+import { getPoseLandmarker } from "@/lib/pose/landmarker";
+import { runSwingPipeline, type StageTiming, type SwingPipelineResult } from "@/lib/swing/pipeline";
 
-// Dev page (not linked from the flow): how long does on-device club tracking take on this phone?
-// Full 640 px frames, every frame at the chosen rate, no crop. The video stays on the device.
-const FPS_OPTIONS = [240, 120, 60, 30];
+// Dev page (not linked from the flow): main's swing processing (pose -> phases -> club track -> tempo, path) run
+// on this device, with timings per stage. The video never leaves the device.
 
-type Phase = "idle" | "loading-model" | "ready" | "running" | "done" | "error";
+type Phase = "idle" | "loading" | "ready" | "running" | "done" | "error";
+type Mode = "downswing" | "all" | "pose-only";
 
 // Last run (partial ones too) survives a tab crash: shown on reload.
 const SAVE_KEY = "takomo.clubBench.last";
@@ -17,7 +17,7 @@ function save(r: Report) {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(r));
   } catch {
-    /* private mode / quota: live view still works */
+    /* private mode / quota */
   }
 }
 function loadSaved(): Report | null {
@@ -29,154 +29,120 @@ function loadSaved(): Report | null {
   }
 }
 
-const fmt = (v: number, d = 0) => (Number.isFinite(v) ? v.toFixed(d) : "–");
+const fmt = (v: number | null | undefined, d = 0) => (v != null && Number.isFinite(v) ? v.toFixed(d) : "–");
+const perFrame = (s: StageTiming) => (s.frames ? s.ms / s.frames : NaN);
+
+function stageRow(name: string, s: StageTiming) {
+  return (
+    <>
+      <dt className="font-medium">{name}</dt>
+      <dd>
+        {s.frames} frames, {fmt(s.ms / 1000, 1)} s ({fmt(perFrame(s))} ms/frame)
+        <br />
+        <span className="text-muted-foreground">
+          decode {fmt(s.decodeMs / Math.max(s.frames, 1))} · pose {fmt(s.poseMs / Math.max(s.frames, 1))} · club{" "}
+          {fmt(s.clubMs / Math.max(s.frames, 1))} ms/frame
+        </span>
+      </dd>
+    </>
+  );
+}
 
 export function ClubBench() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [det, setDet] = useState<ClubDetector | null>(null);
   const [f16, setF16] = useState<boolean | null>(null);
-  const [fps, setFps] = useState(30); // start small, then scale up
-  const [maxSeconds, setMaxSeconds] = useState(1);
-  const [duration, setDuration] = useState(0);
-  const [progress, setProgress] = useState<[number, number]>([0, 0]);
-  const [summary, setSummary] = useState<BenchSummary | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<Mode>("downswing");
+  const [progress, setProgress] = useState<{ stage: 1 | 2; done: number; total: number } | null>(null);
+  const [result, setResult] = useState<SwingPipelineResult | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [stopped, setStopped] = useState<string | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
   const [saved] = useState<Report | null>(loadSaved);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const workRef = useRef<HTMLCanvasElement>(null);
-  const viewRef = useRef<HTMLCanvasElement>(null);
-  const urlRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     hasShaderF16().then(setF16);
-    setPhase("loading-model");
-    getClubDetector()
-      .then((d) => {
+    setPhase("loading");
+    Promise.all([getClubDetector(), getPoseLandmarker()])
+      .then(([d]) => {
         setDet(d);
         setPhase("ready");
       })
       .catch((e) => {
-        setError(`model failed to load: ${(e as Error).message}`);
+        setError(`models failed to load: ${(e as Error).message}`);
         setPhase("error");
       });
-    return () => {
-      abortRef.current?.abort();
-      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    };
+    return () => abortRef.current?.abort();
   }, []);
 
-  // Inside the file-pick gesture: iOS Safari only loads an unplayed video after a user gesture.
-  function onFile(file: File | undefined) {
-    const video = videoRef.current;
-    if (!file || !video) return;
-    abortRef.current?.abort();
-    setSummary(null);
-    setReport(null);
-    setStopped(null);
-    setDuration(0);
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    urlRef.current = URL.createObjectURL(file);
-    video.src = urlRef.current;
-    video.load();
-    video
-      .play()
-      .then(() => video.pause())
-      .catch(() => undefined);
-  }
-
-  function drawView(box: Detection | null) {
-    const video = videoRef.current;
-    const view = viewRef.current;
-    if (!video || !view) return;
-    view.width = 320;
-    view.height = Math.round((320 * video.videoHeight) / Math.max(video.videoWidth, 1));
-    const ctx = view.getContext("2d")!;
-    ctx.drawImage(video, 0, 0, view.width, view.height);
-    if (box) {
-      ctx.strokeStyle = "#FF6E01";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(
-        (box.x - box.w / 2) * view.width,
-        (box.y - box.h / 2) * view.height,
-        box.w * view.width,
-        box.h * view.height,
-      );
-    }
-  }
-
   async function run() {
-    const video = videoRef.current;
-    const work = workRef.current;
-    if (!det || !video || !work) return;
+    if (!det || !file) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setPhase("running");
-    setSummary(null);
-    setError(null);
-    setStopped(null);
-    setCopied(false);
+    setResult(null);
     setReport(null);
-    const base = {
-      backend: det.backend,
-      shaderF16: f16,
-      modelLoadMs: Math.round(det.loadMs),
-      sampleFps: fps,
-      video: `${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(2)} s`,
-      userAgent: navigator.userAgent,
-    };
+    setError(null);
+    setCopied(false);
+    setProgress(null);
+    const base = { backend: det.backend, shaderF16: f16, modelLoadMs: Math.round(det.loadMs), mode, userAgent: navigator.userAgent };
+    save({ ...base, partial: "in progress (page may have crashed)" });
+    let last = 0;
     try {
-      const r = await runClubBenchmark(det, video, work, {
-        sampleFps: fps,
-        maxSeconds,
+      const r = await runSwingPipeline(file, {
+        detector: mode === "pose-only" ? null : det,
+        landmarker: await getPoseLandmarker(),
+        clubWindow: mode === "all" ? "all" : "downswing",
         signal: ctrl.signal,
-        onStats: (s) => {
-          setSummary(s);
-          save({ ...base, partial: "in progress (page may have crashed)", ...s });
-        },
-        onFrame: (i, n, box) => {
-          setProgress([i + 1, n]);
-          if (i % 4 === 0) drawView(box); // keep the preview cheap
+        onProgress: (stage, done, total) => {
+          const now = performance.now();
+          if (now - last > 200 || done === total) {
+            last = now; // throttle React updates: they cost more than a frame on a phone
+            setProgress({ stage, done, total });
+          }
         },
       });
-      const final = { ...base, partial: r.stopped, ...r.summary };
-      save(final);
-      setSummary(r.summary);
-      setStopped(r.stopped);
-      setReport(final);
+      const rep: Report = {
+        ...base,
+        video: `${r.width}x${r.height}, ${r.durationS.toFixed(2)} s, ${fmt(r.clipFps)} fps`,
+        totalS: +(r.timings.totalMs / 1000).toFixed(1),
+        pass1: r.timings.pass1,
+        pass2: r.timings.pass2,
+        events: r.events,
+        tempo: r.tempo,
+        clubPathDeg: r.clubPathDeg,
+        clubRawShare: +r.clubRawShare.toFixed(2),
+        clubShare: +r.clubShare.toFixed(2),
+      };
+      save(rep);
+      setResult(r);
+      setReport(rep);
       setPhase("done");
     } catch (e) {
-      save({ ...base, partial: `error: ${(e as Error).message}` });
-      setError((e as Error).message);
+      const msg = (e as Error).name === "AbortError" ? "stopped by user" : (e as Error).message;
+      save({ ...base, partial: `error: ${msg}` });
+      setError(msg);
       setPhase("error");
     }
   }
 
-  const frames = Math.floor(Math.min(duration, maxSeconds) * fps);
-
   return (
     <main className="mx-auto max-w-xl space-y-4 p-4">
-      <h1 className="font-display text-3xl font-bold uppercase italic">Club tracking benchmark</h1>
+      <h1 className="font-display text-3xl font-bold uppercase italic">Swing processing benchmark</h1>
       <p className="text-sm text-muted-foreground">
-        Runs the club detector (YOLO11m, FP16) on every frame, full 640 px, on this device. Nothing is uploaded.
+        Pose at 30 fps over the clip finds the swing phases, then pose + club detector run at the clip&apos;s own frame
+        rate around the downswing. Same logic as the Python pipeline. Nothing is uploaded.
       </p>
 
       <dl className="grid grid-cols-2 gap-x-4 text-sm">
-        <dt>Backend</dt>
-        <dd>{det ? det.backend : phase === "loading-model" ? "loading model (~40 MB)…" : "–"}</dd>
+        <dt>Club model backend</dt>
+        <dd>{det ? det.backend : phase === "loading" ? "loading models (~45 MB)…" : "–"}</dd>
         <dt>WebGPU shader-f16</dt>
         <dd>{f16 === null ? "–" : f16 ? "yes" : "no"}</dd>
-        <dt>Model load</dt>
-        <dd>{det ? `${fmt(det.loadMs)} ms` : "–"}</dd>
       </dl>
-      {det?.error && (
-        <p className="text-sm text-destructive">
-          WebGPU failed, using CPU (about 2–3 s per frame, keep runs short): {det.error}
-        </p>
-      )}
+      {det?.error && <p className="text-sm text-destructive">WebGPU failed, club model on CPU (slow): {det.error}</p>}
       {saved && phase !== "running" && phase !== "done" && (
         <details className="text-sm">
           <summary>Last run: {String(saved.partial ?? "complete")}</summary>
@@ -185,49 +151,27 @@ export function ClubBench() {
       )}
 
       <label className="block text-sm font-medium">
-        Swing clip (slow-mo is fine)
+        Swing clip (slow-mo is fine, max 10 s)
         <input
           type="file"
           accept="video/*"
           className="mt-1 block w-full text-sm"
-          onChange={(e) => onFile(e.target.files?.[0])}
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           disabled={phase === "running"}
         />
       </label>
 
-      <div className="flex gap-4 text-sm">
-        <label>
-          Frame rate{" "}
-          <select value={fps} onChange={(e) => setFps(Number(e.target.value))} disabled={phase === "running"}>
-            {FPS_OPTIONS.map((f) => (
-              <option key={f} value={f}>
-                {f} fps
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Max seconds{" "}
-          <input
-            type="number"
-            min={0.5}
-            max={10}
-            step={0.5}
-            value={maxSeconds}
-            onChange={(e) => setMaxSeconds(Number(e.target.value) || 1)}
-            className="w-16"
-            disabled={phase === "running"}
-          />
-        </label>
-      </div>
-      {duration > 0 && (
-        <p className="text-sm">
-          Clip {fmt(duration, 2)} s → {frames} frames
-        </p>
-      )}
+      <label className="block text-sm">
+        Club detector on{" "}
+        <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} disabled={phase === "running"}>
+          <option value="downswing">downswing only (fast)</option>
+          <option value="all">every frame (worst case)</option>
+          <option value="pose-only">off (pose + phases only)</option>
+        </select>
+      </label>
 
       <div className="flex gap-2">
-        <Button onClick={run} disabled={!det || !duration || phase === "running"}>
+        <Button onClick={run} disabled={!det || !file || phase === "running"}>
           Run
         </Button>
         {phase === "running" && (
@@ -237,66 +181,51 @@ export function ClubBench() {
         )}
       </div>
 
-      {phase === "running" && (
+      {phase === "running" && progress && (
         <p className="text-sm">
-          Frame {progress[0]} / {progress[1]}
+          {progress.stage === 1 ? "Pass 1 (pose, 30 fps)" : "Pass 2 (pose + club)"}: {progress.done} / ~{progress.total}
         </p>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <video
-        ref={videoRef}
-        className="pointer-events-none absolute h-px w-px opacity-0"
-        playsInline
-        muted
-        preload="auto"
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-      />
-      <canvas ref={workRef} className="hidden" />
-      <canvas ref={viewRef} className="w-full max-w-xs" />
-
-      {summary && (
+      {result && report && (
         <section className="space-y-2">
-          {phase === "running" && <p className="text-sm">Live, updates every 10 frames</p>}
-          {stopped && <p className="text-sm text-destructive">Partial run ({stopped}).</p>}
-          <dl className="grid grid-cols-2 gap-x-4 text-sm">
-            <dt>Frames</dt>
-            <dd>{summary.frames}</dd>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <dt className="font-bold">Total time</dt>
-            <dd className="font-bold">{fmt(summary.wallS, 1)} s</dd>
-            <dt>Per frame (all-in)</dt>
-            <dd>{fmt(summary.msPerFrame)} ms</dd>
-            <dt>Inference median / p90</dt>
+            <dd className="font-bold">{fmt(result.timings.totalMs / 1000, 1)} s</dd>
+            <dt>Video</dt>
+            <dd>{String(report.video)}</dd>
+            {stageRow("Pass 1", result.timings.pass1)}
+            {stageRow("Pass 2", result.timings.pass2)}
+            <dt>Tempo</dt>
             <dd>
-              {fmt(summary.inferMedianMs)} / {fmt(summary.inferP90Ms)} ms
+              {result.tempo
+                ? `${fmt(result.tempo.backswingS, 2)} s / ${fmt(result.tempo.downswingS, 2)} s = ${result.tempo.ratio}:1`
+                : "–"}
             </dd>
-            <dt>First inference (warm-up)</dt>
-            <dd>{fmt(summary.firstInferMs)} ms</dd>
-            <dt>Inference first 20 → last 20</dt>
+            <dt>Club path</dt>
+            <dd>{fmt(result.clubPathDeg, 1)}°</dd>
+            <dt>Club found (raw / filled)</dt>
             <dd>
-              {fmt(summary.inferFirst20Ms)} → {fmt(summary.inferLast20Ms)} ms
+              {fmt(result.clubRawShare * 100)} % / {fmt(result.clubShare * 100)} %
             </dd>
-            <dt>Seek (decode) mean</dt>
-            <dd>{fmt(summary.seekMeanMs)} ms</dd>
-            <dt>Pre-process mean</dt>
-            <dd>{fmt(summary.prepMeanMs)} ms</dd>
-            <dt>Shaft detected</dt>
-            <dd>{fmt(summary.detectedShare * 100)} %</dd>
+            <dt>Top / impact</dt>
+            <dd>
+              {fmt(result.events.Top, 2)} s / {fmt(result.events.Impact, 2)} s
+            </dd>
           </dl>
-          {report && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigator.clipboard
-                  .writeText(JSON.stringify(report, null, 2))
-                  .then(() => setCopied(true))
-                  .catch(() => setCopied(false))
-              }
-            >
-              {copied ? "Copied" : "Copy results"}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              navigator.clipboard
+                .writeText(JSON.stringify(report, null, 2))
+                .then(() => setCopied(true))
+                .catch(() => setCopied(false))
+            }
+          >
+            {copied ? "Copied" : "Copy results"}
+          </Button>
         </section>
       )}
     </main>
