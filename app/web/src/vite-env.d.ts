@@ -3,4 +3,5 @@
 interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   readonly VITE_CLUB_TRACKING?: string;
+  readonly VITE_VOICE?: string;
 }

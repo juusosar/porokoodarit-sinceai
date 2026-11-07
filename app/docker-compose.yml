@@ -27,6 +27,7 @@ services:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
       VITE_SHOP_URL: ${VITE_SHOP_URL:-https://takomogolf.com}
       VITE_CLUB_TRACKING: ${VITE_CLUB_TRACKING:-false}
+      VITE_VOICE: ${VITE_VOICE:-on}
     ports:
       - "3000:8080"
     depends_on:

@@ -1,6 +1,6 @@
 # Web image: static Vite build served by nginx (non-root). Build context = app/ (needs app/shared):
 #   docker build -f web/Dockerfile -t takomo-web .
-# Runtime env (no rebuild per environment): VITE_API_URL, VITE_SHOP_URL, VITE_CLUB_TRACKING, PORT (default 8080).
+# Runtime env (no rebuild per environment): VITE_API_URL, VITE_SHOP_URL, VITE_CLUB_TRACKING, VITE_VOICE, PORT (default 8080).
 FROM node:22-alpine AS build
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./

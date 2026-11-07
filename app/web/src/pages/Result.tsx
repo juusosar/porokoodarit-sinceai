@@ -7,21 +7,14 @@ import { useFit } from "@/lib/fit-store";
 import { renderReason } from "@/lib/reasons";
 import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
+import { HearItButton, lineOf, useSpeakLine } from "@/features/voice";
 
 // Order links are a stub until the Shopify product/variant mapping exists (POR-18 follow-up).
 const SHOP_URL = env("VITE_SHOP_URL", "https://takomogolf.com");
 
-function speak(text: string) {
-  try {
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-  } catch {
-    /* no TTS on this browser */
-  }
-}
-
 export function Result() {
   const { state, final: explanation, walkthrough, reset, loading } = useFit();
+  useSpeakLine(lineOf(explanation));
 
   useEffect(() => {
     if (state) walkthrough();
@@ -52,9 +45,7 @@ export function Result() {
       {explanation && (
         <div className="space-y-1 border-l-2 border-primary pl-3" data-testid="walkthrough">
           <p>{explanation.spoken_line}</p>
-          <button className="text-xs text-primary underline" onClick={() => speak(explanation.spoken_line)}>
-            Hear it
-          </button>
+          <HearItButton line={lineOf(explanation)!} className="text-xs text-primary underline" />
         </div>
       )}
 

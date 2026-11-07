@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     llm_model_allowlist: str = (
         "gemini-flash-latest,gemini-flash-lite-latest,gemini-pro-latest,gemini-3.8-flash,gemini-3.5-flash-lite"
     )
+    # Voice (TTS) for host lines. "none" = off: no /v1/speak route; the web app falls back to the browser voice.
+    tts_provider: str = "none"
+    elevenlabs_api_key: str | None = None
+    # Stock premade voice (not a clone of a real person). Change via env, no code change.
+    elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"
+    elevenlabs_model: str = "eleven_flash_v2_5"
+    tts_rate_per_min: int = 30
+    # Spend cap: characters sent to the provider per UTC day per instance (cache hits are free).
+    tts_daily_chars: int = 20_000
+    tts_cache_mb: int = 32
     # Abuse limits for /v1/explain (per API instance, in memory).
     explain_rate_per_min: int = 30
     max_body_bytes: int = 64_000
