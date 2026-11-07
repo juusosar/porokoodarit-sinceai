@@ -109,6 +109,20 @@ describe("voice player", () => {
     expect(spoken).toEqual([""]);
   });
 
+  it("a line blocked before any tap plays on the first tap; failed unlock retries", async () => {
+    const p = await load();
+    const err = Object.assign(new Error("blocked"), { name: "NotAllowedError" });
+    p.speak({ text: "Hi", token: "t" });
+    const a = audios[0];
+    a.play.mockReturnValueOnce(Promise.reject(err));
+    p.unlock(); // gesture rejected: stays locked
+    await new Promise((r) => setTimeout(r));
+    expect(a.src).toContain("text=Hi"); // pending line kept, not replaced by silence
+    p.unlock(); // next gesture plays the pending line
+    expect(a.play).toHaveBeenCalledTimes(3);
+    expect(a.src).toContain("text=Hi");
+  });
+
   it("autoplay block stays quiet (no browser-voice fallback)", async () => {
     const p = await load();
     p.speak({ text: "Blocked", token: "t" });
