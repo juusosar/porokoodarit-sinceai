@@ -16,13 +16,13 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = "1"
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 # ------------------------------------------------------------------ enums
@@ -48,6 +48,9 @@ Flex = Literal["lady", "senior", "regular", "stiff", "x-stiff"]
 Grip = Literal["standard", "midsize", "oversize"]
 Hand = Literal["right", "left"]
 Purchase = Literal["stock", "custom"]
+Characteristic = Literal[
+    "forgiveness", "distance", "forged feel", "distance control", "workability", "less offset", "more offset"
+]
 
 
 # ------------------------------------------------------------------ inputs
@@ -70,7 +73,7 @@ class Answers(_Model):
     speed_7i_mph: float | None = Field(default=None, gt=0)
     carry_7i_yd: float | None = Field(default=None, gt=0)
     own_7i_loft_deg: float | None = Field(default=None, gt=15, lt=45)
-    characteristics: list[str] = Field(default_factory=list, max_length=3)
+    characteristics: list[Characteristic] = Field(default_factory=list, max_length=3)
     flight: Literal["low", "mid", "high"] | None = None
     tempo: Literal["smooth", "moderate", "quick"] | None = None
     height_cm: float | None = Field(default=None, gt=100, lt=230)
@@ -88,6 +91,26 @@ class Measurements(_Model):
     backswing_s: Observation | None = None
     downswing_s: Observation | None = None
     lie_need_deg: Observation | None = None
+
+    @model_validator(mode="after")
+    def _plausible(self) -> Measurements:
+        for name, (lo, hi) in MEASUREMENT_BOUNDS.items():
+            o = getattr(self, name)
+            if o is not None and not lo <= o.value <= hi:
+                raise ValueError(f"{name} {o.value} outside plausible range {lo}..{hi}")
+        return self
+
+
+# Plausible ranges for measured values (same spirit as Answers bounds); outside -> 422.
+MEASUREMENT_BOUNDS = {
+    "height_cm": (100, 230),
+    "wrist_to_floor_cm": (50, 120),
+    "hand_length_cm": (12, 26),
+    "speed_7i_mph": (30, 130),
+    "backswing_s": (0.3, 3.0),
+    "downswing_s": (0.1, 1.0),
+    "lie_need_deg": (-10, 10),
+}
 
 
 class FitRequest(_Model):
