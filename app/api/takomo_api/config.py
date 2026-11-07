@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     gcp_location: str = "global"
     # Models the demo panel may switch to (comma-separated). Env-configured role models are always allowed.
     llm_model_allowlist: str = (
-        "gemini-flash-latest,gemini-flash-lite-latest,gemini-pro-latest,gemini-2.5-flash,gemini-2.5-pro"
+        "gemini-flash-latest,gemini-flash-lite-latest,gemini-pro-latest,gemini-3.8-flash,gemini-3.5-flash-lite"
     )
     # Abuse limits for /v1/explain (per API instance, in memory).
     explain_rate_per_min: int = 30
