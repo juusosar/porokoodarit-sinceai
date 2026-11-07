@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     explain_rate_per_min: int = 30
     max_body_bytes: int = 64_000
 
+    @property
+    def llm_thinking_level(self) -> str:
+        """Back-compat for callers written before per-role levels (e.g. /v1/chat): final level."""
+        return self.llm_thinking_level_final
+
     def llm_limits(self, role: str) -> tuple[float, str]:
         """(timeout_s, thinking_level) for an explain role."""
         if role == "step_line":
