@@ -124,3 +124,45 @@ def test_elevenlabs_error_raises_before_audio():
 
 def test_no_key_means_unavailable():
     assert not ElevenLabsProvider(None, voice="V").available()
+
+
+class Flaky(FakeTTS):
+    def __init__(self, first_err=None, mid_err=None):
+        super().__init__()
+        self.first_err, self.mid_err = first_err, mid_err
+
+    def stream(self, text):
+        self.calls.append(text)
+
+        def gen():
+            if self.first_err:
+                raise self.first_err
+            yield b"ID3"
+            if self.mid_err:
+                raise self.mid_err
+            yield b"rest"
+
+        return gen()
+
+
+def test_error_before_first_byte_is_502_and_refunded(voice_on):
+    _, c = voice_on(Flaky(first_err=httpx.ReadTimeout("slow")), daily=10_000)
+    e = explain(c)
+    r = c.get("/v1/speak", params={"text": e["spoken_line"], "token": e["audio_token"]})
+    assert r.status_code == 502
+    assert service.speech().budget._used == 0
+
+
+def test_mid_stream_error_ends_quietly_not_cached_refunded(voice_on):
+    p, c = voice_on(Flaky(mid_err=TTSError("drop")))
+    e = explain(c)
+    q = {"text": e["spoken_line"], "token": e["audio_token"]}
+    r = c.get("/v1/speak", params=q)
+    assert r.status_code == 200 and r.content == b"ID3"
+    assert service.speech().budget._used == 0
+    assert c.get("/v1/speak", params=q).headers["x-cache"] == "miss"
+
+
+def test_malformed_token_is_422_not_500(voice_on):
+    _, c = voice_on()
+    assert c.get("/v1/speak", params={"text": "hi", "token": "é" * 32}).status_code == 422

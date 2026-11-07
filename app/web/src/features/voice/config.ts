@@ -2,8 +2,9 @@ import { env } from "@/lib/env";
 
 /**
  * VITE_VOICE (build or runtime env):
- * - "on" (default): server voice (ElevenLabs via the API) when the line is signed, else the browser voice.
- * - "browser": browser speechSynthesis only, never calls the API for audio.
+ * - "on" (default): server voice (ElevenLabs via the API) for signed lines; silent when the API has voice off
+ *   ("Hear it" then uses the browser voice). Browser voice is also the fallback if server audio fails.
+ * - "browser": browser speechSynthesis only (auto + "Hear it"), never calls the API for audio.
  * - "off": no voice at all, no voice UI. Captions are always shown regardless.
  */
 export type VoiceMode = "on" | "browser" | "off";
