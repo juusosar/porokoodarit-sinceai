@@ -31,7 +31,7 @@ function Clubs() {
   const confirmed = fitting.snapshot?.confirmed === true;
   const extras = useEnrichment(confirmed);
   const swing = useMemo(() => (confirmed ? readSwing(getFittingToken()) : null), [confirmed]);
-  const fit = useFitState(confirmed && !extras.loading, fitting.snapshot?.profile ?? null, extras.data, swing);
+  const fit = useFitState(confirmed && (extras.ready || extras.error), fitting.snapshot?.profile ?? null, extras.data, swing);
   const [selection, setSelection] = useState<HeadSelection | null>(null);
   const [overlay, setOverlay] = useState(false), [saving, setSaving] = useState(false), [error, setError] = useState(false);
   const busy = useRef(false);
