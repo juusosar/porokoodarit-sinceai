@@ -118,6 +118,8 @@ export function Profile() {
     if (h !== null && (h <= 100 || h >= 230)) return setErr("That height looks off. Check the number?");
     if (w2fCm !== null && (w2fCm <= 50 || w2fCm >= 120)) return setErr("Wrist-to-floor looks off. Check the number?");
     if (a.carry_7i_yd != null && (a.carry_7i_yd < 40 || a.carry_7i_yd > 260)) return setErr("7-iron carry: 40–260 yd.");
+    if (a.own_7i_loft_deg != null && (a.own_7i_loft_deg <= 15 || a.own_7i_loft_deg >= 45))
+      return setErr("7-iron loft: between 15° and 45°.");
     setErr(null);
     await commit("profile", {
       answers: { ...a, height_cm: h, wrist_to_floor_cm: w2fCm },
@@ -233,6 +235,22 @@ export function Profile() {
           yd
         </span>
       </label>
+
+      {a.carry_7i_yd != null && (
+        <label className="block space-y-1">
+          <span className="text-sm text-muted-foreground">Loft of that 7-iron, if you know it (sharpens the carry read)</span>
+          <span className="flex items-center gap-2">
+            <input
+              aria-label="Own 7-iron loft degrees"
+              inputMode="decimal"
+              className={inputCls}
+              value={a.own_7i_loft_deg ?? ""}
+              onChange={(e) => set({ own_7i_loft_deg: num(e.target.value) })}
+            />
+            °
+          </span>
+        </label>
+      )}
 
       <Choice
         label="Ball flight today"
