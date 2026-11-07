@@ -7,6 +7,7 @@ Where each piece of data is processed and stored, and for how long. Hosting: US 
 | Questionnaire answers + measured numbers (no media) | Phone | API (Cloud Run), per request | This browser's localStorage (MVP "saved fitting") | Until "Start over"; server copy (Atlas, opt-in, 30 d) not built yet |
 | Body / hand photo | Phone | Nowhere (only measured numbers leave) | Not stored | None |
 | Swing video (full) | Phone (MediaPipe pose) | Nowhere | Not stored | None |
+| Ball-line test face photo | Phone (shown from a local object URL, golfer taps 4 points) | Nowhere (only the tilt angle per shot leaves, inside FitRequest) | Not stored; angles in browser localStorage, 30 d | None |
 | Pose landmarks / tempo numbers | Phone | API | Not stored by default | Request lifetime |
 | Swing video frames for club tracking (YOLO) | Phone (onnxruntime-web, WebGPU) | Nowhere | Not stored | None |
 | Swing clip (~1.5 s, 640px), legacy server path, unused | Modal GPU (YOLO) | Modal, only after explicit consent | Temp file | Deleted right after processing |
