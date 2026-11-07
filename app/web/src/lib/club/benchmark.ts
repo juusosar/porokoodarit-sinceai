@@ -6,6 +6,9 @@ export type BenchOptions = {
   sampleFps: number;
   maxSeconds: number;
   onFrame?: (i: number, n: number, box: Detection | null) => void;
+  /** Called every `statsEvery` frames with stats so far (live view + crash-safe save). */
+  onStats?: (summary: BenchSummary) => void;
+  statsEvery?: number;
   signal?: AbortSignal;
 };
 
@@ -18,7 +21,7 @@ export async function runClubBenchmark(
   det: ClubDetector,
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
-  { sampleFps, maxSeconds, onFrame, signal }: BenchOptions,
+  { sampleFps, maxSeconds, onFrame, onStats, statsEvery = 10, signal }: BenchOptions,
 ): Promise<{ summary: BenchSummary; boxes: (Detection | null)[]; stopped: string | null }> {
   const n = Math.max(1, Math.floor(Math.min(video.duration, maxSeconds) * sampleFps));
   const timings: FrameTiming[] = [];
@@ -42,6 +45,8 @@ export async function runClubBenchmark(
     timings.push({ seekMs, prepMs, inferMs, detected: !!box });
     boxes.push(box);
     onFrame?.(i, n, box);
+    if (onStats && (i + 1) % statsEvery === 0) onStats(summarize(timings, (performance.now() - start) / 1000));
+    await new Promise((r) => setTimeout(r, 0)); // yield: keep the page responsive, let GC run
   }
   return { summary: summarize(timings, (performance.now() - start) / 1000), boxes, stopped };
 }

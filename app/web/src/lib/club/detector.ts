@@ -52,10 +52,9 @@ export function bestBox(
   };
 }
 
-/** RGBA pixels of the letterboxed frame -> float32 CHW 0..1. */
-export function toChw(rgba: Uint8ClampedArray, size = INPUT): Float32Array {
+/** RGBA pixels of the letterboxed frame -> float32 CHW 0..1, written into `out` (reuse it: no per-frame 5 MB alloc). */
+export function toChw<T extends Float32Array>(rgba: Uint8ClampedArray, size: number, out: T): T {
   const n = size * size;
-  const out = new Float32Array(3 * n);
   for (let i = 0; i < n; i++) {
     out[i] = rgba[i * 4] / 255;
     out[n + i] = rgba[i * 4 + 1] / 255;
@@ -94,6 +93,10 @@ export function getClubDetector(): Promise<ClubDetector> {
   return instance;
 }
 
+// One input buffer + tensor for the whole run: iOS Safari kills tabs on memory pressure, so no per-frame garbage.
+let inputBuf: Float32Array<ArrayBuffer> | null = null;
+let inputTensor: ort.Tensor | null = null;
+
 /** One frame: letterbox the current video frame onto `canvas`, run the model, return the shaft box + timings. */
 export async function detectFrame(
   det: ClubDetector,
@@ -110,7 +113,10 @@ export async function detectFrame(
   ctx.fillStyle = "rgb(114,114,114)";
   ctx.fillRect(0, 0, INPUT, INPUT);
   ctx.drawImage(video, lb.padX, lb.padY, lb.w * lb.scale, lb.h * lb.scale);
-  const input = new ort.Tensor("float32", toChw(ctx.getImageData(0, 0, INPUT, INPUT).data), [1, 3, INPUT, INPUT]);
+  inputBuf ??= new Float32Array(3 * INPUT * INPUT);
+  inputTensor ??= new ort.Tensor("float32", inputBuf, [1, 3, INPUT, INPUT]);
+  toChw(ctx.getImageData(0, 0, INPUT, INPUT).data, INPUT, inputBuf);
+  const input = inputTensor;
   const t1 = performance.now();
   let out: ort.Tensor | undefined;
   try {
@@ -119,7 +125,6 @@ export async function detectFrame(
     const t2 = performance.now();
     return { box: bestBox(data, out.dims, lb), prepMs: t1 - t0, inferMs: t2 - t1 };
   } finally {
-    input.dispose();
-    out?.dispose();
+    out?.dispose(); // input tensor is reused across frames
   }
 }
