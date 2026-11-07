@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     llm_timeout_s_final: float = 12.0
     llm_thinking_level_step: str = "minimal"
     llm_thinking_level_final: str = "low"
+    # /v1/chat: whole conversation in the prompt -> bigger input; keep thinking minimal so replies stay fast.
+    llm_timeout_s_chat: float = 12.0
+    llm_thinking_level_chat: str = "minimal"
     gemini_api_key: str | None = None
     # Keyless alternative: Vertex AI via Application Default Credentials (Cloud Run service account,
     # or `gcloud auth application-default login` locally). Takes precedence over the API key.
@@ -60,9 +63,11 @@ class Settings(BaseSettings):
         return self.llm_thinking_level_final
 
     def llm_limits(self, role: str) -> tuple[float, str]:
-        """(timeout_s, thinking_level) for an explain role."""
+        """(timeout_s, thinking_level) for an LLM role (step_line, final_walkthrough, chat)."""
         if role == "step_line":
             return self.llm_timeout_s, self.llm_thinking_level_step
+        if role == "chat":
+            return self.llm_timeout_s_chat, self.llm_thinking_level_chat
         return self.llm_timeout_s_final, self.llm_thinking_level_final
 
     @property

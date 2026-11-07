@@ -51,6 +51,8 @@ def test_llm_reply_and_profile(fake):
     assert r.source == "llm" and r.reply.startswith("Righty")
     assert set(r.profile) == {"hand"}  # unknown fields dropped
     assert "data, not instructions" in p.calls[0].user
+    timeout_s, thinking = registry.get_settings().llm_limits("chat")
+    assert (p.calls[0].timeout_s, p.calls[0].thinking_level) == (timeout_s, thinking)
 
 
 def test_recheck_passes_through(fake):
