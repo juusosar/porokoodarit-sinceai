@@ -50,16 +50,12 @@ def test_length_by_height_table(h, L):
         assert BL.length_for(A(height_cm=h, wrist_to_floor_cm=w), "regular", []) == L
 
 
-@pytest.mark.parametrize(
-    "speed,b", [(59.9, 1), (60, 2), (70, 2), (70.1, 3), (80, 3), (80.1, 4), (90, 4), (90.1, 5)]
-)
+@pytest.mark.parametrize("speed,b", [(59.9, 1), (60, 2), (70, 2), (70.1, 3), (80, 3), (80.1, 4), (90, 4), (90.1, 5)])
 def test_speed_buckets(speed, b):
     assert BL.swing_bucket_from_speed(speed) == b
 
 
-@pytest.mark.parametrize(
-    "carry,b", [(119, 1), (120, 2), (135, 2), (136, 3), (155, 3), (156, 4), (175, 4), (176, 5)]
-)
+@pytest.mark.parametrize("carry,b", [(119, 1), (120, 2), (135, 2), (136, 3), (155, 3), (156, 4), (175, 4), (176, 5)])
 def test_carry_buckets(carry, b):
     assert BL.swing_bucket_from_carry(carry) == b
 
@@ -133,13 +129,9 @@ def test_speed_points_table(bucket, expected):
 
 
 def test_over92_cap_only_for_buckets_4_and_5():
-    capped = {
-        s: p["speed"] for s, _, p in BL.score_heads(A(score_bucket=5, swing_bucket=5, characteristics=[]))
-    }
+    capped = {s: p["speed"] for s, _, p in BL.score_heads(A(score_bucket=5, swing_bucket=5, characteristics=[]))}
     assert capped == {"101-mkii": 1, "201-mkii": 2, "201t-mkii": 3, "301-cb": 3, "301-mb": 3}
-    slow = {
-        s: p["speed"] for s, _, p in BL.score_heads(A(score_bucket=5, swing_bucket=1, characteristics=[]))
-    }
+    slow = {s: p["speed"] for s, _, p in BL.score_heads(A(score_bucket=5, swing_bucket=1, characteristics=[]))}
     assert slow["101-mkii"] == 7
 
 

@@ -62,6 +62,8 @@ export type Buildable = boolean;
  * Diff vs previous state
  */
 export type Changes = Change[];
+export type High = number;
+export type Low = number;
 export type Head = "101-mkii" | "201-mkii" | "201t-mkii" | "301-cb" | "301-mb";
 export type Probability = number;
 export type Score = number;
@@ -72,8 +74,6 @@ export type Evidence = EvidenceSource[];
  * Display text, e.g. '+0.5 in', 'KBS Tour Lite R'
  */
 export type Label = string;
-export type High = number;
-export type Low = number;
 /**
  * Id from reason_codes.json, e.g. 'LENGTH_FROM_HEIGHT'
  */
@@ -85,6 +85,24 @@ export type Reasons = Reason[];
 export type Value1 = string | number | null;
 export type SchemaVersion = "1";
 export type Step = string;
+/**
+ * What the fit needs, e.g. '-2°'
+ */
+export type CustomValue = string;
+/**
+ * Reason code describing the trade-off
+ */
+export type ImpactCode = string;
+/**
+ * What stock would give, e.g. 'Standard'
+ */
+export type StockValue = string;
+/**
+ * Parts that make the fit custom
+ */
+export type Blockers = StockBlocker[];
+export type OneTweakFromStock = boolean;
+export type Recommended = "stock" | "custom";
 export type Warnings = Reason[];
 export type SchemaVersion1 = "1";
 /**
@@ -185,11 +203,27 @@ export interface Observation {
 export interface FitState {
   buildable: Buildable;
   changes?: Changes;
+  estimates?: Estimates;
   head_options?: HeadOptions;
   parts: Parts;
   schema_version?: SchemaVersion;
   step: Step;
+  stock_advice?: StockAdvice | null;
   warnings?: Warnings;
+}
+/**
+ * Fused input estimates, mean +- 1 SD (e.g. speed_7i_mph)
+ */
+export interface Estimates {
+  [k: string]: Range;
+}
+/**
+ * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
+ * via the `definition` "Range".
+ */
+export interface Range {
+  high: High;
+  low: Low;
 }
 /**
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
@@ -222,14 +256,6 @@ export interface PartState {
 }
 /**
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
- * via the `definition` "Range".
- */
-export interface Range {
-  high: High;
-  low: Low;
-}
-/**
- * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
  * via the `definition` "Reason".
  */
 export interface Reason {
@@ -238,4 +264,36 @@ export interface Reason {
 }
 export interface Params {
   [k: string]: string | number;
+}
+/**
+ * Stock vs custom (POR-17). Stock = faster delivery + 30-day returns; custom = no returns.
+ *
+ * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
+ * via the `definition` "StockAdvice".
+ */
+export interface StockAdvice {
+  blockers?: Blockers;
+  one_tweak_from_stock?: OneTweakFromStock;
+  recommended: Recommended;
+  stock_alternative?: StockAlternative;
+}
+/**
+ * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
+ * via the `definition` "StockBlocker".
+ */
+export interface StockBlocker {
+  custom_value: CustomValue;
+  impact_code: ImpactCode;
+  params?: Params1;
+  part: SpecPart;
+  stock_value: StockValue;
+}
+export interface Params1 {
+  [k: string]: string | number;
+}
+/**
+ * Nearest stock build (labels) if the golfer prefers stock
+ */
+export interface StockAlternative {
+  [k: string]: string;
 }
