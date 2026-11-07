@@ -33,6 +33,15 @@
         },
         "characteristics": {
           "items": {
+            "enum": [
+              "forgiveness",
+              "distance",
+              "forged feel",
+              "distance control",
+              "workability",
+              "less offset",
+              "more offset"
+            ],
             "type": "string"
           },
           "maxItems": 3,
