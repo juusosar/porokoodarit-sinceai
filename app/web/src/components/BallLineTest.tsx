@@ -23,7 +23,7 @@ export function BallLineTest({ shots, onChange, disabled }: { shots: number[]; o
     setError('');
   }
   function tap(e: React.MouseEvent<HTMLImageElement>) {
-    if (pts.length >= 4 || !img.current) return;
+    if (disabled || pts.length >= 4 || !img.current) return;
     const r = img.current.getBoundingClientRect();
     // natural-pixel coordinates so the angle doesn't depend on display scaling
     const sx = img.current.naturalWidth / r.width, sy = img.current.naturalHeight / r.height;

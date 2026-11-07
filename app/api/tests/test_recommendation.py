@@ -151,3 +151,44 @@ def test_every_emitted_code_exists():
     )
     codes = [r.code for p in s.parts.values() for r in p.reasons] + [n.code for n in s.next_steps]
     assert codes and all(c in CODES for c in codes)
+
+
+def test_static_lie_and_simulated_ball_line_agree():
+    # no shots: the lie is exactly Takomo's chart; a ball-line test that agrees with it keeps the value
+    a = full_answers(height_cm=165, wrist_to_floor_cm=70)
+    s = run(a)
+    tilt = (Fu.static_lie(164, 70.5) - Fu.BALL_LINE_B) / Fu.BALL_LINE_K
+    s2 = run(a, ball_line_tilt_deg=meas(tilt, 0.7, "ball_line_tap_n5"))
+    assert s2.parts["lie"].value == s.parts["lie"].value
+    assert s2.parts["lie"].confidence > s.parts["lie"].confidence
+    assert s.parts["lie"].inputs and s.parts["lie"].inputs[0].method == "static_chart"
+
+
+def test_score_counts_once_for_the_head():
+    # the head integrates over speed x score, so its speed estimate must not already contain the score prior
+    fz = Fu.fuse(Answers(score_bucket=2, carry_7i_yd=150), Measurements())
+    assert "score_prior" in [o.method for o, _ in fz.speed.items]
+    assert "score_prior" not in [o.method for o, _ in fz.speed_head.items]
+
+
+def test_reasons_name_what_each_source_said():
+    # answer mid, landing says low: the reason must not claim the launch monitor said mid
+    s = run(full_answers(flight="mid"), landing_deg=meas(46, 0.5, "landing_angle"))
+    codes = {r.code: r.params for r in s.parts["shaft"].reasons}
+    if "FLIGHT_FROM_LAUNCH" in codes:
+        assert codes["FLIGHT_FROM_LAUNCH"]["flight"] == "low"
+    else:
+        assert codes["FLIGHT_LAUNCH_VS_ANSWER"]["lm_flight"] == "low"
+    # no tempo answer + unclear video: don't credit an answer the golfer never gave
+    t = run(
+        full_answers(tempo=None),
+        backswing_s=meas(0.79, 0.035, "video_pose"),
+        downswing_s=meas(0.24, 0.035, "video_pose"),
+    )
+    tc = [r.code for r in t.parts["shaft"].reasons]
+    assert "TEMPO_VIDEO_UNCLEAR" not in tc
+
+
+def test_carry_reason_shown_when_carry_counts():
+    s = run(full_answers(speed_7i_mph=78, carry_7i_yd=150))
+    assert any(r.code == "CARRY_READ" for r in s.parts["shaft"].reasons)
