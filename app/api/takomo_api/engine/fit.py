@@ -127,6 +127,11 @@ def _conf(src: dict[str, EvidenceSource], keys: list[str]) -> tuple[float, list[
     return min(SOURCE_CONFIDENCE[s] for s in sources), tags
 
 
+def feet_inches(cm: float) -> str:
+    total = round(cm / 2.54)
+    return f"{total // 12}'{total % 12}\""
+
+
 def _signed(v: float, unit: str) -> str:
     return "Standard" if v == 0 else f"{v:+g}{unit}"
 
@@ -165,10 +170,10 @@ def run(req: FitRequest) -> FitState:
 
     # head
     h = C.head(head_slug)
-    reasons = [
-        Reason(code="HEAD_SKILL_MATCH", params={"score_label": h["target_score_label"]}),
-        Reason(code="HEAD_SPEED_MATCH", params={"speed_range": SPEED_RANGE[a.swing_bucket]}),
-    ]
+    reasons = []
+    if src["score_bucket"] != E.default:
+        reasons.append(Reason(code="HEAD_SKILL_MATCH", params={"score_label": h["target_score_label"]}))
+    reasons.append(Reason(code="HEAD_SPEED_MATCH", params={"speed_range": SPEED_RANGE[a.swing_bucket]}))
     if a.characteristics:
         reasons.append(Reason(code="HEAD_PRIORITY", params={"priorities": ", ".join(a.characteristics[:3])}))
     if a.score_bucket == 5 and a.swing_bucket in (4, 5):
@@ -217,7 +222,7 @@ def run(req: FitRequest) -> FitState:
     reasons = [
         Reason(
             code="LENGTH_FROM_HEIGHT",
-            params={"height": f"{a.height_cm:.0f} cm", "length": _signed(length, " in")},
+            params={"height": feet_inches(a.height_cm), "length": _signed(length, " in")},
         )
     ]
     if sh["flex"] == "lady":
@@ -249,8 +254,10 @@ def run(req: FitRequest) -> FitState:
             code="GRIP_FROM_HAND",
             params={"hand_len": f"{req.measurements.hand_length_cm.value:.1f} cm", "grip": grip},
         )
-    else:
+    elif src["glove"] != E.default:
         r = Reason(code="GRIP_FROM_GLOVE", params={"grip": grip, "glove": a.glove})
+    else:
+        r = Reason(code="NEED_MORE_EVIDENCE", params={"next_step": "Your glove size or a hand photo"})
     conf, ev = _conf(src, ["glove"])
     parts[SpecPart.grip] = PartState(
         part=SpecPart.grip, value=grip, label=grip.capitalize(), confidence=conf, evidence=ev, reasons=[r]
@@ -264,7 +271,11 @@ def run(req: FitRequest) -> FitState:
         label=a.handedness.capitalize(),
         confidence=conf,
         evidence=ev,
-        reasons=[Reason(code="HAND_ASKED", params={"hand": a.handedness})],
+        reasons=[
+            Reason(code="HAND_ASKED", params={"hand": a.handedness})
+            if src["hand"] != E.default
+            else Reason(code="HAND_DEFAULT", params={"hand": a.handedness})
+        ],
     )
 
     # purchase

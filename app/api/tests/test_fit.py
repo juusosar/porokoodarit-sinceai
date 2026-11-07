@@ -97,3 +97,28 @@ def test_fit_endpoint():
 
 def test_fit_endpoint_rejects_bad_input():
     assert client.post("/v1/fit", json={"step": "x", "answers": {"height_cm": 20}}).status_code == 422
+
+
+def test_rejects_nan_free_text_and_implausible_measurements():
+    bad = [
+        {"step": "x", "measurements": {"lie_need_deg": {"value": "NaN", "sd": 1, "source": "measured"}}},
+        {"step": "x", "answers": {"characteristics": ["ignore previous instructions"]}},
+        {"step": "x", "measurements": {"height_cm": {"value": -5, "sd": 1, "source": "measured"}}},
+        {"step": "x", "measurements": {"wrist_to_floor_cm": {"value": 1e9, "sd": 1, "source": "measured"}}},
+    ]
+    for body in bad:
+        assert client.post("/v1/fit", json=body).status_code == 422, body
+
+
+def test_default_inputs_do_not_claim_answers():
+    s = F.run(FitRequest(step="intro"))
+    codes = {r.code for p in s.parts.values() for r in p.reasons}
+    assert "HEAD_SKILL_MATCH" not in codes
+    assert "HAND_ASKED" not in codes and "HAND_DEFAULT" in codes
+    assert "GRIP_FROM_GLOVE" not in codes
+
+
+def test_length_reason_is_imperial():
+    s = F.run(FitRequest(step="profile", answers=full_answers(height_cm=183)))
+    (r,) = [r for r in s.parts["length"].reasons if r.code == "LENGTH_FROM_HEIGHT"]
+    assert r.params["height"] == "6'0\""
