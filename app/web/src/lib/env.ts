@@ -1,6 +1,12 @@
 // Config lookup: runtime (window.__TAKOMO_ENV__, written by the web container at start) wins over
 // build-time import.meta.env. One image can then run against any API URL / host.
-type Key = "VITE_API_URL" | "VITE_SHOP_URL" | "VITE_CLUB_TRACKING";
+// Build-time values are read by literal name so Vite inlines only these three (not the whole env object).
+const BUILD = {
+  VITE_API_URL: import.meta.env.VITE_API_URL as string | undefined,
+  VITE_SHOP_URL: import.meta.env.VITE_SHOP_URL as string | undefined,
+  VITE_CLUB_TRACKING: import.meta.env.VITE_CLUB_TRACKING as string | undefined,
+};
+type Key = keyof typeof BUILD;
 
 declare global {
   interface Window {
@@ -9,6 +15,7 @@ declare global {
 }
 
 export function env(key: Key, fallback: string): string {
+  // Empty runtime value = not set. Build-time keeps the old `??` semantics (empty string is a value).
   const runtime = typeof window !== "undefined" ? window.__TAKOMO_ENV__?.[key] : undefined;
-  return runtime || (import.meta.env[key] as string | undefined) || fallback;
+  return runtime || (BUILD[key] ?? fallback);
 }

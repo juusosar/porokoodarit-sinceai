@@ -13,6 +13,11 @@ server {
         try_files $uri =404;
     }
 
+    # Big static assets: real 404, never the app shell (MediaPipe would get HTML).
+    location ~ ^/(mediapipe|models)/ {
+        try_files $uri =404;
+    }
+
     # Runtime config + app shell: always revalidate.
     location = /env.js {
         add_header Cache-Control "no-store";

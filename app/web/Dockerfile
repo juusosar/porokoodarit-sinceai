@@ -9,9 +9,13 @@ COPY shared /src/shared
 COPY web ./
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.29-alpine
 ENV PORT=8080
 COPY web/docker/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --chmod=755 web/docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
-COPY --from=build --chown=101:101 /src/web/dist /usr/share/nginx/html
+# Group 0 + g+w: env.js stays writable when a host runs the image as an arbitrary UID (OpenShift, k8s runAsUser).
+COPY --from=build --chown=101:0 /src/web/dist /usr/share/nginx/html
+USER root
+RUN chmod -R g+w /usr/share/nginx/html
+USER 101
 EXPOSE 8080

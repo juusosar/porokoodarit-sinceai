@@ -33,7 +33,9 @@ Current setup (`gcloud run deploy --source app/api`) keeps working unchanged. Im
 cp app/deploy/api.env.example.yaml app/deploy/api.env.yaml   # fill in, gitignored
 GCP_PROJECT=<proj> REGISTRY=europe-north1-docker.pkg.dev/<proj>/takomo TAG=v1 app/deploy/cloudrun.sh
 ```
-Deploys API + web, wires the web to the API URL. Then add the web URL to `TAKOMO_CORS_ORIGINS`.
+Deploys API + web, wires the web to the API URL. Fails if `api.env.yaml` is missing.
+Careful: default service name `takomo-api` (`API_SERVICE`) + `--min-instances 1` (`API_MIN_INSTANCES`). If the live
+`--source` service has that name, this switches it to image deploys and keeps one instance always on (cost). Then add the web URL to `TAKOMO_CORS_ORIGINS`.
 
 ## Other hosts
 1. Push both images (above).

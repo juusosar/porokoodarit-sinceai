@@ -1,4 +1,4 @@
-# Full stack locally: docker compose up --build   (from app/)
+# Full stack locally: docker compose up --build   (from app/, Docker Compose >= 2.24)
 # Web http://localhost:3000, API http://localhost:8080. API config: api/.env (copy from api/.env.example).
 services:
   api:
@@ -7,8 +7,8 @@ services:
       - path: ./api/.env
         required: false
     environment:
-      TAKOMO_ENV: ${TAKOMO_ENV:-local}
-      TAKOMO_CORS_ORIGINS: ${TAKOMO_CORS_ORIGINS:-http://localhost:3000}
+      # Overrides api/.env: compose web is on :3000 (plus :5173 for npm run dev against this API).
+      TAKOMO_CORS_ORIGINS: ${TAKOMO_CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       PORT: "8080"
     ports:
       - "8080:8080"
