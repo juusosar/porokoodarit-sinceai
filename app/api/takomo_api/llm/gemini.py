@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import replace
 from typing import Any
 
 from .base import LLMError, LLMRequest
@@ -97,7 +98,11 @@ class GeminiProvider:
                 log.warning("gemini model=%s rejects thinking %s, using %s", model, level, nxt)
                 self._level_override[(model, asked)] = nxt
                 level = nxt
-                resp = self._call(model, req, nxt)
+                # Same deadline for the whole call: the retry only gets what the rejected try left.
+                left = req.timeout_s - (time.perf_counter() - t0)
+                if left < 1.0:
+                    raise
+                resp = self._call(model, replace(req, timeout_s=left), nxt)
             out = json.loads(resp.text or "")
             _log_call(model, level, t0, resp=resp)
             return out
@@ -118,6 +123,7 @@ class GeminiProvider:
                 response_mime_type="application/json",
                 response_json_schema=req.json_schema,
                 thinking_config=thinking,
+                max_output_tokens=req.max_output_tokens,
                 http_options=types.HttpOptions(timeout=int(req.timeout_s * 1000)),
             ),
         )
