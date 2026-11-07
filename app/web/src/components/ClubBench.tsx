@@ -60,6 +60,7 @@ export function ClubBench() {
   const [f16, setF16] = useState<boolean | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<Mode>("downswing");
+  const [slowMo, setSlowMo] = useState(1);
   const [progress, setProgress] = useState<{ stage: 1 | 2; done: number; total: number } | null>(null);
   const [result, setResult] = useState<SwingPipelineResult | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -102,6 +103,7 @@ export function ClubBench() {
       clubWarmMs: Math.round(det.warmMs ?? NaN),
       poseWarmMs: Math.round(poseWarmMs ?? NaN),
       mode,
+      slowMo,
       userAgent: navigator.userAgent,
     };
     save({ ...base, partial: "in progress (page may have crashed)" });
@@ -111,6 +113,7 @@ export function ClubBench() {
         detector: mode === "pose-only" ? null : det,
         landmarker: await getPoseLandmarker(),
         clubWindow: mode === "all" ? "all" : "downswing",
+        slowMo,
         signal: ctrl.signal,
         onProgress: (stage, done, total) => {
           const now = performance.now();
@@ -187,6 +190,15 @@ export function ClubBench() {
           <option value="downswing">downswing only (fast)</option>
           <option value="all">every frame (worst case)</option>
           <option value="pose-only">off (pose + phases only)</option>
+        </select>
+      </label>
+
+      <label className="block text-sm">
+        Video speed{" "}
+        <select value={slowMo} onChange={(e) => setSlowMo(Number(e.target.value))} disabled={phase === "running"}>
+          <option value={1}>normal</option>
+          <option value={4}>slow-mo, 4x slower</option>
+          <option value={8}>slow-mo, 8x slower (240 fps shown at 30)</option>
         </select>
       </label>
 
