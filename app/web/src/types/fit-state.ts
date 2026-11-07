@@ -5,7 +5,18 @@ export type Carry7IYd = number | null;
 /**
  * @maxItems 3
  */
-export type Characteristics = [] | [string] | [string, string] | [string, string, string];
+export type Characteristics =
+  | []
+  | ["forgiveness" | "distance" | "forged feel" | "distance control" | "workability" | "less offset" | "more offset"]
+  | [
+      "forgiveness" | "distance" | "forged feel" | "distance control" | "workability" | "less offset" | "more offset",
+      "forgiveness" | "distance" | "forged feel" | "distance control" | "workability" | "less offset" | "more offset"
+    ]
+  | [
+      "forgiveness" | "distance" | "forged feel" | "distance control" | "workability" | "less offset" | "more offset",
+      "forgiveness" | "distance" | "forged feel" | "distance control" | "workability" | "less offset" | "more offset",
+      "forgiveness" | "distance" | "forged feel" | "distance control" | "workability" | "less offset" | "more offset"
+    ];
 export type Flight = ("low" | "mid" | "high") | null;
 export type Glove = ("XS" | "S" | "M" | "M/L" | "L" | "XL") | null;
 export type Hand = ("right" | "left") | null;
