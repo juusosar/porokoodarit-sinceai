@@ -53,3 +53,21 @@ export function removeLocal(kind: string, token: string): void {
     /* ignore */
   }
 }
+
+/** "Delete my data": every Takomo key in this browser (fittings, swing timing, extras, settings). */
+export function clearAllLocal(): number {
+  let n = 0;
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith(PREFIX)) {
+        localStorage.removeItem(k);
+        n++;
+      }
+    }
+    sessionStorage.clear();
+  } catch {
+    /* storage blocked: nothing stored */
+  }
+  changed();
+  return n;
+}
