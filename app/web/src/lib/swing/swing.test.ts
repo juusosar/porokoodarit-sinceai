@@ -56,6 +56,26 @@ describe("detectPhases (port of phase_detector.py)", () => {
     w.y[7] = NaN;
     expect(detectPhases(w, fps).frames).toEqual(PY[fps]);
   });
+  it("times the backswing from the takeaway, not a waggle seconds earlier", () => {
+    // hands sit still at 0.7 from 0 to 1.5 s with a waggle dip (lowest point) at 0.3 s, then rise to the top at 2.3 s
+    const fps = 60;
+    const y: number[] = [];
+    const x: number[] = [];
+    for (let i = 0; i < Math.round(3.5 * fps); i++) {
+      const t = i / fps;
+      let yy: number;
+      if (t < 1.5) yy = 0.7 + 0.03 * Math.exp(-(((t - 0.3) / 0.05) ** 2));
+      else if (t < 2.3) yy = 0.7 - 0.5 * Math.sin(((t - 1.5) / 0.8) * (Math.PI / 2)) ** 2; // eases in and out
+      else if (t < 2.6) yy = 0.2 + 0.52 * ((t - 2.3) / 0.3) ** 2;
+      else yy = 0.72 - 0.5 * Math.min(1, (t - 2.6) / 0.6);
+      y.push(yy);
+      x.push(0.5);
+    }
+    const p = detectPhases({ x, y }, fps);
+    expect(p.frames.Address / fps).toBeLessThan(0.5); // main's address: the waggle
+    expect(p.takeaway / fps).toBeGreaterThan(1.4); // takeaway: when the hands start to rise
+    expect(p.takeaway / fps).toBeLessThan(1.6);
+  });
   it("rejects too few frames", () => {
     expect(() => detectPhases({ x: [1, 2], y: [1, 2] }, 30)).toThrow();
   });

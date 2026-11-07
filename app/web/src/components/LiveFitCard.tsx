@@ -13,6 +13,7 @@ import { getFittingToken } from "@/lib/fitting-session";
 import { activeEnrichment, enrichmentSchema, type Enrichment } from "@/lib/enrichment-schema";
 import { LOCAL_EVENT, readLocal } from "@/lib/local-store";
 import { PARTS, confidenceView } from "@/lib/parts";
+import { renderReason } from "@/lib/reasons";
 import { readSwing, type SwingRecord } from "@/lib/swing-store";
 import type { FitState } from "@/types/fit-state";
 
@@ -143,6 +144,11 @@ export function LiveFitCard() {
       {moved.length > 0 && (
         <p role="status" className="border-t border-border px-3 py-1.5 text-xs text-primary">
           {moved.join(" · ")}
+        </p>
+      )}
+      {!collapsed && state.next_steps?.[0] && (
+        <p className="border-t border-border px-3 py-1.5 text-xs text-muted-foreground" data-testid="live-next-step">
+          Next: {renderReason({ code: state.next_steps[0].code, params: {} })}
         </p>
       )}
       {!collapsed && (
