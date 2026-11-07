@@ -363,6 +363,14 @@
           "title": "Changes",
           "type": "array"
         },
+        "estimates": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Range"
+          },
+          "description": "Fused input estimates, mean +- 1 SD (e.g. speed_7i_mph)",
+          "title": "Estimates",
+          "type": "object"
+        },
         "head_options": {
           "items": {
             "$ref": "#/$defs/HeadOption"
@@ -389,6 +397,17 @@
         "step": {
           "title": "Step",
           "type": "string"
+        },
+        "stock_advice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StockAdvice"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "warnings": {
           "items": {
@@ -704,6 +723,97 @@
       ],
       "title": "SpecPart",
       "type": "string"
+    },
+    "StockAdvice": {
+      "additionalProperties": false,
+      "description": "Stock vs custom (POR-17). Stock = faster delivery + 30-day returns; custom = no returns.",
+      "properties": {
+        "blockers": {
+          "description": "Parts that make the fit custom",
+          "items": {
+            "$ref": "#/$defs/StockBlocker"
+          },
+          "title": "Blockers",
+          "type": "array"
+        },
+        "one_tweak_from_stock": {
+          "default": false,
+          "title": "One Tweak From Stock",
+          "type": "boolean"
+        },
+        "recommended": {
+          "enum": [
+            "stock",
+            "custom"
+          ],
+          "title": "Recommended",
+          "type": "string"
+        },
+        "stock_alternative": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Nearest stock build (labels) if the golfer prefers stock",
+          "propertyNames": {
+            "$ref": "#/$defs/SpecPart"
+          },
+          "title": "Stock Alternative",
+          "type": "object"
+        }
+      },
+      "required": [
+        "recommended"
+      ],
+      "title": "StockAdvice",
+      "type": "object"
+    },
+    "StockBlocker": {
+      "additionalProperties": false,
+      "properties": {
+        "custom_value": {
+          "description": "What the fit needs, e.g. '-2\u00b0'",
+          "title": "Custom Value",
+          "type": "string"
+        },
+        "impact_code": {
+          "description": "Reason code describing the trade-off",
+          "title": "Impact Code",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "part": {
+          "$ref": "#/$defs/SpecPart"
+        },
+        "stock_value": {
+          "description": "What stock would give, e.g. 'Standard'",
+          "title": "Stock Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "part",
+        "custom_value",
+        "stock_value",
+        "impact_code"
+      ],
+      "title": "StockBlocker",
+      "type": "object"
     }
   },
   "title": "Takomo fit state v1"

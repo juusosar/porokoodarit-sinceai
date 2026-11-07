@@ -164,6 +164,25 @@ class Change(_Model):
     confidence_after: float
 
 
+class StockBlocker(_Model):
+    part: SpecPart
+    custom_value: str = Field(description="What the fit needs, e.g. '-2°'")
+    stock_value: str = Field(description="What stock would give, e.g. 'Standard'")
+    impact_code: str = Field(description="Reason code describing the trade-off")
+    params: dict[str, str | float | int] = Field(default_factory=dict)
+
+
+class StockAdvice(_Model):
+    """Stock vs custom (POR-17). Stock = faster delivery + 30-day returns; custom = no returns."""
+
+    recommended: Purchase
+    blockers: list[StockBlocker] = Field(default_factory=list, description="Parts that make the fit custom")
+    stock_alternative: dict[SpecPart, str] = Field(
+        default_factory=dict, description="Nearest stock build (labels) if the golfer prefers stock"
+    )
+    one_tweak_from_stock: bool = False
+
+
 class FitState(_Model):
     schema_version: Literal["1"] = SCHEMA_VERSION
     step: str
@@ -172,6 +191,10 @@ class FitState(_Model):
     changes: list[Change] = Field(default_factory=list, description="Diff vs previous state")
     buildable: bool
     warnings: list[Reason] = Field(default_factory=list)
+    stock_advice: StockAdvice | None = None
+    estimates: dict[str, Range] = Field(
+        default_factory=dict, description="Fused input estimates, mean +- 1 SD (e.g. speed_7i_mph)"
+    )
 
 
 FitRequest.model_rebuild()

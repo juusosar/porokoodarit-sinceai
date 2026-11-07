@@ -12,9 +12,7 @@ OUT = Path(__file__).resolve().parents[2] / "shared" / "fit_state.schema.json"
 
 
 def build() -> str:
-    _, defs = models_json_schema(
-        [(FitRequest, "validation"), (FitState, "serialization")], title="Takomo fit state v1"
-    )
+    _, defs = models_json_schema([(FitRequest, "validation"), (FitState, "serialization")], title="Takomo fit state v1")
     return json.dumps(defs, indent=2, sort_keys=True) + "\n"
 
 
