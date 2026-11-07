@@ -9,6 +9,7 @@ guard; any failure or timeout falls back to deterministic reason-code templates.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import string
 import time
@@ -35,6 +36,8 @@ OUTPUT_SCHEMA = {
     },
     "required": ["spoken_line", "caption", "parts"],
 }
+
+log = logging.getLogger(__name__)
 
 
 class Explanation(BaseModel):
@@ -281,12 +284,16 @@ def explain(state: FitState, role: Role = "step_line") -> Explanation:
         out = LLMOut.model_validate(raw)
         problem = guard(out, state)
     except LLMError as e:
+        log.warning("explain fallback role=%s model=%s llm_error: %s", role, cfg.model, str(e)[:500])
         return template_explanation(state, role, why=_public(f"llm_error: {e}"), t0=t0)
     except ValidationError as e:
+        log.warning("explain fallback role=%s model=%s bad_output: %s", role, cfg.model, e.error_count())
         return template_explanation(state, role, why=_public(f"bad_output: {e.error_count()} errors"), t0=t0)
     except Exception as e:  # never 500 on explain
+        log.exception("explain fallback role=%s model=%s error", role, cfg.model)
         return template_explanation(state, role, why=_public(f"error: {type(e).__name__}"), t0=t0)
     if problem:
+        log.warning("explain fallback role=%s model=%s guard: %s", role, cfg.model, problem)
         return template_explanation(state, role, why=_public(f"guard: {problem}"), t0=t0)
     parts = {SpecPart(k): v for k, v in out.parts.items() if k in SpecPart._value2member_map_}
     return Explanation(
