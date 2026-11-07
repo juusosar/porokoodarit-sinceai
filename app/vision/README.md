@@ -1,5 +1,12 @@
-# vision (M4, POR-10)
+# vision (POR-10): opt-in club tracking on Modal GPU
 
-Modal GPU microservice for YOLO11m club-head tracking. Opt-in only: receives a ~1.5 s 640px clip,
-returns club path features, deletes the clip. Placeholder until M4.
-Weights: `swingtrace-yolo11m.pt` (repo root, to be moved here as ONNX in M4).
+`modal_app.py` runs YOLO11m club-head tracking (`swingtrace-yolo11m.pt`) on a T4.
+
+- Default path needs none of this: pose + tempo run in the browser (`app/web/src/lib/pose`).
+- Only after explicit consent the phone sends the ~1.5 s swing window it already cut out
+  (`SwingAnalysis.window`). The clip is written to a temp file and deleted after the request.
+- Output: club-head centre per frame + detection share. Numbers only.
+
+Status: stub, not deployed (deploys are not pre-approved). Web flag `VITE_CLUB_TRACKING=true` shows the opt-in.
+Copy `swingtrace-yolo11m.pt` from the repo root next to `modal_app.py` before `modal deploy`.
+Next: ONNX/TensorRT FP16 export, API proxy endpoint, club path -> lie/face features.
