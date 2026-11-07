@@ -204,3 +204,12 @@ def test_body_cap_and_rate_limit(monkeypatch):
         assert codes == [200, 200, 429]
     finally:
         get_settings.cache_clear()
+
+
+def test_gemini_vertex_available_without_key():
+    from takomo_api.llm.gemini import GeminiProvider
+
+    assert not GeminiProvider(None).available()
+    assert not GeminiProvider(None, vertex=True).available()  # project required
+    assert GeminiProvider(None, vertex=True, project="p").available()
+    assert GeminiProvider("k").available()
