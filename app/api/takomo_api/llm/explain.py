@@ -2,8 +2,8 @@
 
 Context layers: (1) system prompt (persona + hard rules), (2) Takomo knowledge pack built from the
 catalogue + reason-code texts, (3) the fit state reduced to labels, confidence, reason codes and
-close calls (no raw answers, measurements, video or names). Output is JSON, checked by a spec-match
-guard; any failure or timeout falls back to deterministic reason-code templates.
+close calls (no video or names; reason params can carry a few numbers, e.g. carry said/used, own loft).
+Output is JSON, checked by a spec-match guard; any failure or timeout falls back to deterministic reason-code templates.
 """
 
 from __future__ import annotations

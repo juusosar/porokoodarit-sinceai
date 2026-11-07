@@ -5,12 +5,12 @@ Hosting: API on Google Cloud Run, europe-north1 (Finland). Gemini via Vertex AI,
 
 | Data | Processed on | Sent to | Stored | Retention |
 |---|---|---|---|---|
-| Card answers (hand, sex, score, carry, loft, flight, height, wrist-to-floor, glove) | Phone | API (Cloud Run), per request | This browser's localStorage | 30 days, or until "Delete my data" |
+| Card answers (hand, sex, score, carry, loft, flight, height, wrist-to-floor, glove) | Phone | API (Cloud Run), per request; also Gemini, as the card summary turn and profile labels in the chat | This browser's localStorage | 30 days, or until "Delete my data" |
 | Chat messages the golfer types + profile labels | Phone | API, then Gemini (Google) to write the host's reply (last 6 turns) | localStorage (chat history); not stored by the API | 30 days in browser; Gemini per Google's API terms |
 | Swing video | Phone (MediaPipe pose, self-hosted WASM) | Nowhere | Not stored | Gone when the page closes |
 | Swing timing (backswing / downswing seconds) | Phone | API, per request | localStorage | 30 days, or until "Delete my data" |
 | Extra data (launch monitor speed, carry, launch, spin, strike) | Phone | API: speed and carry only | localStorage | 30 days, or until "Delete my data" |
-| Fit state (engine labels + reason codes, rebuilt server-side from inputs) | API | Gemini, to word the explanation | Not stored by the API | Gemini per Google's API terms |
+| Fit state (engine labels, reason codes and their params, e.g. carry said/used, own loft; rebuilt server-side from inputs) | API | Gemini, to word the explanation | Not stored by the API | Gemini per Google's API terms |
 | Host lines (chat replies + explanation lines the API signed) | API | ElevenLabs, only when voice is on | Audio in API memory cache (not on disk) | Until instance restart / cache eviction; ElevenLabs per its API terms |
 | Request logs (latency, token counts, error codes; an error may quote a short piece of model output) | API | Google Cloud Logging | Cloud Logging | Project log retention |
 | Web fonts | Browser | Google Fonts (fonts.googleapis.com / gstatic.com) sees the page request (IP, user agent) | Browser cache | Browser cache |

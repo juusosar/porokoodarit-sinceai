@@ -71,3 +71,24 @@ export function clearAllLocal(): number {
   changed();
   return n;
 }
+
+/** Drop expired Takomo records from any fitting, not just the current one (old tokens are never read again). */
+export function sweepExpired(now = Date.now()): number {
+  let n = 0;
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith(`${PREFIX}:`)) continue;
+      try {
+        const env = JSON.parse(localStorage.getItem(k) ?? "") as Partial<Envelope<unknown>>;
+        if (typeof env.savedAt === "number" && now - env.savedAt <= TTL_MS) continue;
+      } catch {
+        /* unreadable: drop */
+      }
+      localStorage.removeItem(k);
+      n++;
+    }
+  } catch {
+    /* storage blocked */
+  }
+  return n;
+}
