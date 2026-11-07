@@ -10,11 +10,12 @@ from .base import LLMError, LLMRequest
 
 log = logging.getLogger(__name__)
 
-# AI Studio "-latest" aliases do not exist on Vertex AI (404). Map them to stable Vertex names.
+# AI Studio "-latest" aliases do not exist on Vertex AI (404), and Gemini 2.5 retired on Vertex 2026-10-20.
+# Map aliases to a current Vertex GA model (override with TAKOMO_LLM_MODEL_STEP / _FINAL).
 _VERTEX_ALIASES = {
-    "gemini-flash-latest": "gemini-2.5-flash",
-    "gemini-flash-lite-latest": "gemini-2.5-flash-lite",
-    "gemini-pro-latest": "gemini-2.5-pro",
+    "gemini-flash-latest": "gemini-3.8-flash",
+    "gemini-flash-lite-latest": "gemini-3.5-flash-lite",
+    "gemini-pro-latest": "gemini-3.8-flash",
 }
 
 
