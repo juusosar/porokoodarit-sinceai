@@ -1,0 +1,701 @@
+{
+  "$defs": {
+    "Answers": {
+      "additionalProperties": false,
+      "description": "Questionnaire answers. Every field optional so the engine can run after each step.",
+      "properties": {
+        "age": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 10,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Age"
+        },
+        "carry_7i_yd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carry 7I Yd"
+        },
+        "characteristics": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "title": "Characteristics",
+          "type": "array"
+        },
+        "flight": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "mid",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flight"
+        },
+        "glove": {
+          "anyOf": [
+            {
+              "enum": [
+                "XS",
+                "S",
+                "M",
+                "M/L",
+                "L",
+                "XL"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glove"
+        },
+        "hand": {
+          "anyOf": [
+            {
+              "enum": [
+                "right",
+                "left"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hand"
+        },
+        "height_cm": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 230,
+              "exclusiveMinimum": 100,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height Cm"
+        },
+        "own_7i_loft_deg": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 45,
+              "exclusiveMinimum": 15,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Own 7I Loft Deg"
+        },
+        "score_bucket": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Bucket"
+        },
+        "sex": {
+          "anyOf": [
+            {
+              "enum": [
+                "male",
+                "female"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sex"
+        },
+        "speed_7i_mph": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed 7I Mph"
+        },
+        "tempo": {
+          "anyOf": [
+            {
+              "enum": [
+                "smooth",
+                "moderate",
+                "quick"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tempo"
+        },
+        "wrist_to_floor_cm": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 120,
+              "exclusiveMinimum": 50,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wrist To Floor Cm"
+        }
+      },
+      "title": "Answers",
+      "type": "object"
+    },
+    "Change": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "After"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Before"
+        },
+        "confidence_after": {
+          "title": "Confidence After",
+          "type": "number"
+        },
+        "confidence_before": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence Before"
+        },
+        "part": {
+          "$ref": "#/$defs/SpecPart"
+        }
+      },
+      "required": [
+        "part",
+        "before",
+        "after",
+        "confidence_after"
+      ],
+      "title": "Change",
+      "type": "object"
+    },
+    "CloseCall": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative": {
+          "description": "Value on the other side of the line",
+          "title": "Alternative",
+          "type": "string"
+        },
+        "margin": {
+          "description": "Distance to the decision line, in the input's unit",
+          "title": "Margin",
+          "type": "number"
+        },
+        "note_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note Code"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alternative",
+        "margin",
+        "unit"
+      ],
+      "title": "CloseCall",
+      "type": "object"
+    },
+    "EvidenceSource": {
+      "enum": [
+        "asked",
+        "measured",
+        "estimated",
+        "default"
+      ],
+      "title": "EvidenceSource",
+      "type": "string"
+    },
+    "FitRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "answers": {
+          "$ref": "#/$defs/Answers"
+        },
+        "measurements": {
+          "$ref": "#/$defs/Measurements"
+        },
+        "previous": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FitState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Last fit state, used to build the diff"
+        },
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "step": {
+          "description": "UI step that triggered this run, e.g. 'profile', 'swing'",
+          "title": "Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step"
+      ],
+      "title": "FitRequest",
+      "type": "object"
+    },
+    "FitState": {
+      "additionalProperties": false,
+      "properties": {
+        "buildable": {
+          "title": "Buildable",
+          "type": "boolean"
+        },
+        "changes": {
+          "description": "Diff vs previous state",
+          "items": {
+            "$ref": "#/$defs/Change"
+          },
+          "title": "Changes",
+          "type": "array"
+        },
+        "head_options": {
+          "items": {
+            "$ref": "#/$defs/HeadOption"
+          },
+          "title": "Head Options",
+          "type": "array"
+        },
+        "parts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PartState"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/SpecPart"
+          },
+          "title": "Parts",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "step": {
+          "title": "Step",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/Reason"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "step",
+        "parts",
+        "buildable"
+      ],
+      "title": "FitState",
+      "type": "object"
+    },
+    "HeadOption": {
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "enum": [
+            "101-mkii",
+            "201-mkii",
+            "201t-mkii",
+            "301-cb",
+            "301-mb"
+          ],
+          "title": "Head",
+          "type": "string"
+        },
+        "probability": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Probability",
+          "type": "number"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "head",
+        "score",
+        "probability"
+      ],
+      "title": "HeadOption",
+      "type": "object"
+    },
+    "Measurements": {
+      "additionalProperties": false,
+      "description": "Values measured on the phone / launch monitor. Keys follow lab phone_measurements.csv.",
+      "properties": {
+        "backswing_s": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "downswing_s": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hand_length_cm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "height_cm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lie_need_deg": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speed_7i_mph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wrist_to_floor_cm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Measurements",
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "description": "One value for one input, from one source, with its uncertainty (1 SD, same unit).",
+      "properties": {
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e.g. 'questionnaire', 'photo', 'video_240fps'",
+          "title": "Method"
+        },
+        "sd": {
+          "minimum": 0,
+          "title": "Sd",
+          "type": "number"
+        },
+        "source": {
+          "$ref": "#/$defs/EvidenceSource"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value",
+        "sd",
+        "source"
+      ],
+      "title": "Observation",
+      "type": "object"
+    },
+    "PartState": {
+      "additionalProperties": false,
+      "properties": {
+        "close_call": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CloseCall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSource"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "label": {
+          "description": "Display text, e.g. '+0.5 in', 'KBS Tour Lite R'",
+          "title": "Label",
+          "type": "string"
+        },
+        "part": {
+          "$ref": "#/$defs/SpecPart"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Range"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Plausible numeric range (length/lie)"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/Reason"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Chosen value; None = not enough evidence yet",
+          "title": "Value"
+        }
+      },
+      "required": [
+        "part",
+        "value",
+        "label",
+        "confidence"
+      ],
+      "title": "PartState",
+      "type": "object"
+    },
+    "Range": {
+      "additionalProperties": false,
+      "properties": {
+        "high": {
+          "title": "High",
+          "type": "number"
+        },
+        "low": {
+          "title": "Low",
+          "type": "number"
+        }
+      },
+      "required": [
+        "low",
+        "high"
+      ],
+      "title": "Range",
+      "type": "object"
+    },
+    "Reason": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "description": "Id from reason_codes.json, e.g. 'LENGTH_FROM_HEIGHT'",
+          "title": "Code",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "Reason",
+      "type": "object"
+    },
+    "SpecPart": {
+      "enum": [
+        "head",
+        "shaft",
+        "length",
+        "lie",
+        "grip",
+        "hand",
+        "purchase"
+      ],
+      "title": "SpecPart",
+      "type": "string"
+    }
+  },
+  "title": "Takomo fit state v1"
+}
