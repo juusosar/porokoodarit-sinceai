@@ -15,6 +15,7 @@ class LLMRequest:
     json_schema: dict[str, Any]
     model: str
     timeout_s: float = 6.0
+    thinking_level: str = ""
     temperature: float = 0.4
 
 

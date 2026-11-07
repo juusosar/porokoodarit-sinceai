@@ -281,6 +281,7 @@ def explain(state: FitState, role: Role = "step_line") -> Explanation:
                 json_schema=OUTPUT_SCHEMA,
                 model=cfg.model,
                 timeout_s=registry.get_settings().llm_timeout_s,
+                thinking_level=registry.get_settings().llm_thinking_level,
             )
         )
         out = LLMOut.model_validate(raw)
