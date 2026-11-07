@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Takomo theme tokens (shadcn / Lovable layout: HSL triplets, no hsl() wrapper).
+ * Brand: near-black #0B0B0B / #121212, white + greys, single orange accent #FF6E01,
+ * Barlow Condensed italic caps headings, sharp corners (--radius: 0).
+ * Contrast: orange text only on dark surfaces. On light surfaces orange is fill/accent only
+ * (#FF6E01 on white is ~2.8:1, fails WCAG AA for text).
+ * Lovable exports: keep their component files, drop their index.css :root block, these win.
+ */
+@layer base {
+  :root {
+    /* light (used only if embedded on a light Shopify section) */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 4%;
+    --card: 0 0% 97%;
+    --card-foreground: 0 0% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 26 100% 50%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 92%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 36%;
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 26 100% 50%;
+    --radius: 0rem;
+    --evidence-asked: 0 0% 45%;
+    --evidence-measured: 26 100% 50%;
+    --evidence-estimated: 210 15% 50%;
+  }
+
+  .dark {
+    /* default: Takomo dark */
+    --background: 0 0% 4.3%; /* #0B0B0B */
+    --foreground: 0 0% 98%;
+    --card: 0 0% 7%; /* #121212 */
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 26 100% 50%; /* #FF6E01 */
+    --primary-foreground: 0 0% 4.3%;
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 13%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 26 100% 50%;
+    --evidence-asked: 0 0% 70%;
+    --evidence-measured: 26 100% 55%;
+    --evidence-estimated: 210 20% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    min-height: 100dvh;
+  }
+  h1, h2, h3 {
+    @apply font-display font-extrabold italic uppercase tracking-tight;
+  }
+}
