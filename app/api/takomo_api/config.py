@@ -20,10 +20,14 @@ class Settings(BaseSettings):
     llm_provider: str = "gemini"
     llm_model_step: str = "gemini-flash-latest"
     llm_model_final: str = "gemini-pro-latest"
-    llm_timeout_s: float = 6.0
-    # Gemini 3+ "thinking" adds seconds per call. low = fast enough for live UI; "" = model default.
-    # Models without thinking_level support (Gemini 2.x) need "" here.
-    llm_thinking_level: str = "low"
+    # Per role (POR-25): step lines are short + frequent -> minimal thinking, tight timeout.
+    # The final walkthrough is once per fitting and longer -> low thinking, more time.
+    # Gemini 3+ "thinking" adds seconds per call; "" = model default. Gemini 2.x rejects levels: use "".
+    # Gemini 3 Pro accepts only low/high.
+    llm_timeout_s: float = 6.0  # step_line
+    llm_timeout_s_final: float = 12.0
+    llm_thinking_level_step: str = "minimal"
+    llm_thinking_level_final: str = "low"
     gemini_api_key: str | None = None
     # Keyless alternative: Vertex AI via Application Default Credentials (Cloud Run service account,
     # or `gcloud auth application-default login` locally). Takes precedence over the API key.
@@ -47,6 +51,12 @@ class Settings(BaseSettings):
     # Abuse limits for /v1/explain (per API instance, in memory).
     explain_rate_per_min: int = 30
     max_body_bytes: int = 64_000
+
+    def llm_limits(self, role: str) -> tuple[float, str]:
+        """(timeout_s, thinking_level) for an explain role."""
+        if role == "step_line":
+            return self.llm_timeout_s, self.llm_thinking_level_step
+        return self.llm_timeout_s_final, self.llm_thinking_level_final
 
     @property
     def model_allowlist(self) -> set[str]:
