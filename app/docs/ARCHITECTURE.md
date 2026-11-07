@@ -35,7 +35,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 | M4 | POR-10, POR-11 | Browser pose, skeleton overlay, tempo; Modal YOLO stub |
 | M5 | POR-16 | LLM explain (Gemini), guard, fallback, demo panel |
 | M6 | POR-18, POR-15 | Live fit card (evidence tags, close calls), What-changed toast, host line, profile / launch-monitor / result screens, stock vs custom, cart link stub, answer-vs-measurement follow-up (CONTRADICTION) |
-| M7 | POR-19 | Dev-split eval vs lab baseline (77.1 → aim 83.6) |
+| M7 | POR-19 | Dev-split eval vs lab baseline (77.1 → aim 83.6). Result: 84.87 with evidence, 78.19 answers only. Script: `app/api/eval/dev_split.py`, results: `docs/EVAL.md`. |
 
 ## Branching
 `main` ← `dev` ← one PR per milestone. Each PR: one review round by a separate agent, fixes applied, merged to `dev`.
