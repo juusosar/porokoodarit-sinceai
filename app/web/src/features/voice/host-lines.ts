@@ -22,10 +22,14 @@ let tokens: Promise<Tokens> | null = null;
 export function loadTokens(): Promise<Tokens> {
   if (voiceMode() !== "on") return Promise.resolve({});
   tokens ??= fetch(`${API_URL()}/v1/voice/lines`)
-    .then((r) => (r.ok ? r.json() : { tokens: {} }))
+    .then((r) => {
+      if (r.status === 404) return { tokens: {} }; // server voice off: stay silent this visit
+      if (!r.ok) throw new Error(`voice lines ${r.status}`);
+      return r.json();
+    })
     .then((b: { tokens?: Tokens }) => b.tokens ?? {})
     .catch(() => {
-      tokens = null; // network blip: try again on the next screen
+      tokens = null; // network blip, 429, 5xx: try again on the next screen
       return {};
     });
   return tokens;
