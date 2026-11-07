@@ -56,7 +56,7 @@ export function analyzeFrames(frames: PoseFrame[], fps: number): SwingAnalysis {
 
 export const SEEK_TIMEOUT_MS = 3000;
 
-function seek(video: HTMLVideoElement, t: number, signal?: AbortSignal): Promise<void> {
+export function seek(video: HTMLVideoElement, t: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const done = (err?: Error) => {
       clearTimeout(timer);
