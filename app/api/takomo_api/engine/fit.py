@@ -369,7 +369,8 @@ def run(req: FitRequest) -> FitState:
         head_options=head_options,
         changes=diff(req.previous, parts),
         buildable=not issues,
-        warnings=[Reason(code="UNBUILDABLE", params={"detail": i}) for i in issues],
+        warnings=[Reason(code="UNBUILDABLE", params={"detail": i}) for i in issues]
+        + [Reason(code="CONTRADICTION", params=c) for c in Fu.contradictions(a, m)],
         stock_advice=advice,
         estimates={k: Range(low=round(v.mean - v.sd, 2), high=round(v.mean + v.sd, 2)) for k, v in est.items()},
     )

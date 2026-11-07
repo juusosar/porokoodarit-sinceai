@@ -34,7 +34,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 | M3 | POR-15, POR-17 | Evidence fusion, confidence, close calls, stock vs custom |
 | M4 | POR-10, POR-11 | Browser pose, skeleton overlay, tempo; Modal YOLO stub |
 | M5 | POR-16 | LLM explain (Gemini), guard, fallback, demo panel |
-| M6 | POR-18 | Live fit card, Why / What-changed, result screen, cart link stub |
+| M6 | POR-18, POR-15 | Live fit card (evidence tags, close calls), What-changed toast, host line, profile / launch-monitor / result screens, stock vs custom, cart link stub, answer-vs-measurement follow-up (CONTRADICTION) |
 | M7 | POR-19 | Dev-split eval vs lab baseline (77.1 → aim 83.6) |
 
 ## Branching
