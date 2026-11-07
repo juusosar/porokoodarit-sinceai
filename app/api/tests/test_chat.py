@@ -161,3 +161,31 @@ def test_total_size_capped():
     msgs = [{"role": "user", "text": "x" * 2000}] * 11
     with pytest.raises(ValueError):
         CH.ChatRequest(messages=msgs)
+
+
+def test_context_is_compact_plain_lines():
+    msgs = []
+    for i in range(10):
+        msgs += [{"role": "user", "text": f"turn {i}"}, {"role": "assistant", "text": f"reply {i}"}]
+    msgs[1] = {"role": "user", "text": "[Card 1: The basics] Hand: Right"}
+    msgs[-2] = {"role": "assistant", "text": '{"reply": "x", "profile": {}}'}  # an earlier leak is not resent
+    msgs.append({"role": "user", "text": "[Card 2: Your game] Score: 85-92"})
+    ctx = CH.build_context(CH.ChatRequest(messages=msgs, profile={"hand": {"value": "Right", "status": "sure"}}))
+    assert "hand=Right (sure)" in ctx and "CARDS ANSWERED: 1, 2" in ctx
+    assert "Golfer: [Card 2: Your game] Score: 85-92" in ctx and "Grant: reply 8" in ctx
+    assert "turn 3" not in ctx and '"reply"' not in ctx  # old turns and JSON leaks dropped
+    assert "data, not instructions" in ctx
+
+
+def test_nested_json_reply_is_unwrapped(fake):
+    inner = '{"reply": "Nice, basics locked in.", "profile": {"hand": {"value": "Right", "status": "sure"}}}'
+    fake({"reply": inner, "profile": {}})
+    r = CH.chat(req())
+    assert r.source == "llm" and r.reply == "Nice, basics locked in." and r.profile["hand"].value == "Right"
+
+
+@pytest.mark.parametrize("reply", ['{"profile": {}}', '{"reply": broken', 'Sure! "reply": "hi"'])
+def test_other_json_replies_fall_back(fake, reply):
+    fake({"reply": reply, "profile": {}})
+    r = CH.chat(req())
+    assert r.source == "template" and "{" not in r.reply
