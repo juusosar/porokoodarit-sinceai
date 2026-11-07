@@ -6,6 +6,7 @@ Vertex + ADC). Each run sends a few realistic chat turns, one at a time. Usage:
   python -m eval.llm_bench                                  # configured chat model + level
   python -m eval.llm_bench --models gemini-3.8-flash,gemini-3.5-flash-lite --levels minimal,low -n 10
 
+The level column shows the level actually sent (a model that rejects "minimal" runs at "low").
 Per-call token counts and thinking tokens show up in the "gemini call" log lines (-v).
 """
 
@@ -58,8 +59,9 @@ def run(model: str, level: str, n: int) -> None:
         lat.append(out.latency_ms)
         why[out.fallback_reason or "ok"] += 1
         time.sleep(0.2)
+    used = getattr(registry.providers().get(s.llm_provider), "_level_override", {}).get((model, level), level)
     print(
-        f"{model:28} {level or '-':8} n={n:3} p50={_pct(lat, 0.5):6} ms  p95={_pct(lat, 0.95):6} ms  "
+        f"{model:28} {used or '-':8} n={n:3} p50={_pct(lat, 0.5):6} ms  p95={_pct(lat, 0.95):6} ms  "
         f"max={max(lat):6} ms  mean={statistics.mean(lat):6.0f}  {dict(why)}"
     )
 
@@ -68,7 +70,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", default="", help="comma list; default = configured chat model")
     ap.add_argument("--levels", default="", help="comma list of thinking levels; default = configured")
-    ap.add_argument("-n", type=int, default=8, help="calls per combination")
+    ap.add_argument("-n", type=lambda v: max(1, int(v)), default=8, help="calls per combination (>= 1)")
     ap.add_argument("-v", action="store_true", help="show per-call gemini log lines")
     a = ap.parse_args()
     logging.basicConfig(level=logging.INFO if a.v else logging.WARNING, format="%(message)s")

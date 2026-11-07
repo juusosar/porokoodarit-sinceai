@@ -98,8 +98,9 @@ class GeminiProvider:
                 self._level_override[(model, asked)] = nxt
                 level = nxt
                 resp = self._call(model, req, nxt)
+            out = json.loads(resp.text or "")
             _log_call(model, level, t0, resp=resp)
-            return json.loads(resp.text or "")
+            return out
         except Exception as e:  # network, quota, safety block, bad JSON
             _log_call(model, level, t0, err=e)
             raise LLMError(f"gemini: {type(e).__name__}: {e}") from e
