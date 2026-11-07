@@ -9,7 +9,7 @@ export const enrichmentSchema = z.object({
   carry: optionalNumber(500 / 0.9144),
   launch: z.number().finite().min(0).max(90).nullable(),
   spin: optionalNumber(20000),
-  landing: z.number().finite().min(10).max(70).nullable().default(null),
+  landing: z.number().finite().min(15).max(65).nullable().default(null), // same bounds as the engine
   source: z.literal('manual'),
   impactEnabled: z.boolean(),
   impact: z.enum(['heel', 'center', 'toe']).nullable(),

@@ -201,6 +201,14 @@
     "NEXT_CARRY": {
       "part": "*",
       "text": "Your usual 7-iron carry would help estimate your swing speed."
+    },
+    "FLIGHT_LAUNCH_VS_ANSWER": {
+      "part": "shaft",
+      "text": "Your launch monitor leans {lm_flight}, your answer says {flight}. Together they point to {flight}; more shots would settle it."
+    },
+    "TEMPO_VIDEO_UNCLEAR_TYPICAL": {
+      "part": "shaft",
+      "text": "The swing video timing was unclear, so we assume a typical {tempo} tempo."
     }
   }
 }
