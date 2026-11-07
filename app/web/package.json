@@ -4,15 +4,18 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "dev": "vite",
+    "gen:types": "json2ts -i ../shared/fit_state.schema.json -o src/types/fit-state.ts --bannerComment \"/* Generated from app/shared/fit_state.schema.json by npm run gen:types. Do not edit. */\" --unreachableDefinitions",
     "lint": "eslint .",
-    "typecheck": "tsc -b --noEmit",
+    "prebuild": "node scripts/copy-mediapipe-wasm.mjs",
+    "predev": "node scripts/copy-mediapipe-wasm.mjs",
+    "preview": "vite preview",
     "test": "vitest run",
-    "gen:types": "json2ts -i ../shared/fit_state.schema.json -o src/types/fit-state.ts --bannerComment \"/* Generated from app/shared/fit_state.schema.json by npm run gen:types. Do not edit. */\" --unreachableDefinitions"
+    "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.70.0",

@@ -17,5 +17,6 @@ Where each piece of data is processed and stored, and for how long. Hosting: US 
 Rules
 - No names, faces or video are ever sent to an LLM.
 - API keys live only on the server.
+- Pose model + MediaPipe WASM are self-hosted with the web app: no third-party CDN sees the session.
 - Every upload has a skip path; the fit works with answers only (lower confidence, shown as such).
 - Synthetic lab data is labelled synthetic and never presented as real golfers.
