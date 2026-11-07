@@ -1,4 +1,4 @@
-"""Profiling chat with the host ("Grant") for the web UI (POR-24).
+"""Profiling chat with the host ("Gront") for the web UI (POR-24).
 
 The model only gathers the golfer profile: it never recommends specs (the engine does). Output is JSON
 (reply + profile updates), validated here; any failure falls back to a scripted
@@ -235,7 +235,7 @@ def build_context(req: ChatRequest) -> str:
     for m in req.messages[-RECENT_TURNS:]:
         if m.role == "assistant" and _looks_like_json(m.text):
             continue
-        lines.append(f"{'Golfer' if m.role == 'user' else 'Grant'}: {' '.join(m.text.split())}")
+        lines.append(f"{'Golfer' if m.role == 'user' else 'Gront'}: {' '.join(m.text.split())}")
     # Known fields only, whitespace collapsed: client text can't forge context lines.
     known = [(k, v) for k, v in req.profile.items() if k in PROFILE_FIELDS]
     profile = "; ".join(f"{k}={' '.join(v.value.split())} ({v.status})" for k, v in known) or "nothing yet"

@@ -169,7 +169,7 @@ def test_context_is_compact_plain_lines():
     msgs.append({"role": "user", "text": "[Card 2: Your game] Score: 85-92"})
     ctx = CH.build_context(CH.ChatRequest(messages=msgs, profile={"hand": {"value": "Right", "status": "sure"}}))
     assert "hand=Right (sure)" in ctx and "CARDS ANSWERED: 1, 2" in ctx
-    assert "Golfer: [Card 2: Your game] Score: 85-92" in ctx and "Grant: reply 8" in ctx
+    assert "Golfer: [Card 2: Your game] Score: 85-92" in ctx and "Gront: reply 8" in ctx
     assert "turn 3" not in ctx and '"reply"' not in ctx  # old turns and JSON leaks dropped
     assert "data, not instructions" in ctx
 

@@ -4,14 +4,14 @@ import { useState, useRef } from 'react';
 import { ArrowLeft, ArrowRight, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSwingUpload } from '@/hooks/use-swing-upload';
-import { ActionSelector, FramingExample, GrantMessage, SwingChecklist, VideoHUD, ProcessingStatus, PrivacyNotice, GuideToggle } from '@/components/swing/SwingPanels';
+import { ActionSelector, FramingExample, GrontMessage, SwingChecklist, VideoHUD, ProcessingStatus, PrivacyNotice, GuideToggle } from '@/components/swing/SwingPanels';
 import { SwingCamera } from '@/components/swing/SwingCamera';
 
 export const Route = createFileRoute("/swing")({
   head: () => ({
     meta: [
       { title: "Film Your Swing | Takomo Find My Fit" },
-      { name: "description", content: "Show Grant one swing so he can time your tempo. The video stays on your device." },
+      { name: "description", content: "Show Gront one swing so he can time your tempo. The video stays on your device." },
     ],
   }),
   component: Swing,
@@ -31,10 +31,10 @@ function Swing() {
         <span className="text-xs uppercase tracking-widest text-muted-foreground">Find my fit · <span className="text-primary">Step 2 / 4</span></span>
       </header>
       <section className="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-10">
-        <GrantMessage message={saved ? (tempo ? 'Got your timing. Tempo helps pick the shaft profile; your answers guide the rest.' : 'No timing this time. That’s fine: we’ll lean on your answers.') : analyzing ? 'Reading your swing right here on your phone. Nothing gets uploaded.' : "One normal swing. Let’s see what your clubs are working with."} />
+        <GrontMessage message={saved ? (tempo ? 'Got your timing. Tempo helps pick the shaft profile; your answers guide the rest.' : 'No timing this time. That’s fine: we’ll lean on your answers.') : analyzing ? 'Reading your swing right here on your phone. Nothing gets uploaded.' : "One normal swing. Let’s see what your clubs are working with."} />
         <div className="mb-8 mt-7 flex flex-wrap items-end justify-between gap-4"><h1 className="font-display text-5xl font-bold uppercase italic leading-none md:text-6xl">{flow.phase === 'preview' ? <>Check your <span className="text-primary">swing.</span></> : saved ? <>Swing <span className="text-primary">read.</span></> : analyzing ? <>Reading your <span className="text-primary">swing.</span></> : <>Let’s see your <span className="text-primary">swing.</span></>}</h1><span className="text-xs uppercase tracking-widest text-muted-foreground">{flow.phase === 'selection' ? '01 / Select' : flow.phase === 'preview' ? '02 / Review' : '03 / Read'}</span></div>
         {loading ? <p className="flex gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading your fitting…</p> : error ? <p role="alert">Could not load your profile. Refresh to try again.</p> : <>
-          {!snapshot?.confirmed && <p className="mb-6 border-l-2 border-primary pl-4 text-sm text-muted-foreground">Finish your profile with Grant before sending a video. You can review the filming tips below.</p>}
+          {!snapshot?.confirmed && <p className="mb-6 border-l-2 border-primary pl-4 text-sm text-muted-foreground">Finish your profile with Gront before sending a video. You can review the filming tips below.</p>}
           {flow.phase === 'selection' && <><div className="grid items-center gap-8 md:grid-cols-[1fr_0.8fr]"><SwingChecklist /><FramingExample /></div><div data-scroll-reveal className="mt-8"><ActionSelector record={() => setCamera(true)} upload={() => picker.current?.click()} disabled={flow.busy || !snapshot?.confirmed} /></div><p className="mt-3 text-center text-xs text-muted-foreground">MP4, MOV or WebM · up to 50 MB · first 10 seconds are read (20 for slow motion)</p><div className="mt-3"><PrivacyNotice /></div></>}
           {camera && <div className="mt-6"><SwingCamera onClose={() => setCamera(false)} onVideo={file => { setCamera(false); void flow.select(file); }} /><Button className="mt-3" variant="link" onClick={() => picker.current?.click()}>Upload a video instead <ArrowRight /></Button></div>}
           {flow.url && flow.phase !== 'selection' && <div className="min-w-0"><div className="mb-3 flex items-center justify-between"><p className="text-xs uppercase tracking-widest text-muted-foreground">Your swing</p>{!flow.analysis && <GuideToggle enabled={guides} onClick={() => setGuides(!guides)} />}</div><VideoHUD url={flow.url} guides={guides} onError={flow.failPlayback} analysis={flow.analysis} /><p className="mt-3 break-all text-xs text-muted-foreground">{flow.name} · {(flow.size / 1024 / 1024).toFixed(1)} MB{flow.timing?.encodedFps ? ` · ${flow.timing.encodedFps.toFixed(1)} encoded fps` : ''}</p></div>}
