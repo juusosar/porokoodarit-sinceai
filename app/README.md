@@ -5,7 +5,8 @@ Data handling: [docs/DATA_PRIVACY.md](docs/DATA_PRIVACY.md).
 
 ```
 app/
-  web/     Vite + React + TS + Tailwind (shadcn / Lovable token layout)
+  web/     UI (Lovable design, ported): Vite SPA, React 19, TanStack Router, Tailwind 4, shadcn
+  web_legacy/  previous MVP UI, reference only (not built or deployed)
   api/     FastAPI: engine, fusion, LLM proxy
   shared/  fit_state.schema.json (generated) + reason_codes.json
   vision/  Modal GPU YOLO service (M4)
@@ -37,10 +38,14 @@ cd ../web && npm run gen:types
 ```
 CI fails if either generated file is stale.
 
-## Adding Lovable screens
-Lovable exports use the same stack (Vite, React, TS, Tailwind, shadcn). Copy their `src/components` and
-`src/pages` into `app/web/src`. Keep our `src/index.css` tokens and `tailwind.config.ts`; theirs are not needed.
-Use semantic classes (`bg-background`, `text-primary`, `bg-card`) not raw hex, so the Takomo theme applies.
+## Web UI (from Lovable)
+`app/web` is the Lovable design (original export kept at repo root `frontend/`), ported to a static SPA on our API:
+- Host chat (profiling with "Grant") -> `POST /v1/chat` (our LLM adapter, scripted fallback). Was Lovable AI gateway.
+- Fit + reasons -> `POST /v1/fit`, host walkthrough + voice -> `POST /v1/explain` (+ `/v1/speak`). Was "pending validation".
+- Saved fitting, extra data, head selection -> browser localStorage (30 days). Was Lovable Cloud (Supabase).
+- Swing video -> read on the device with MediaPipe pose (tempo); never uploaded. Was a private cloud upload.
+- Routes are files in `src/routes` (TanStack Router plugin regenerates `src/routeTree.gen.ts`; commit it).
+- Hidden LLM switch panel: add `?demo=1`. Legacy screens for reference: `app/web_legacy`.
 
 ## Git workflow
 Rebase-merge only, linear history. See [../CONTRIBUTING.md](../CONTRIBUTING.md).

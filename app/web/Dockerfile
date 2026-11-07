@@ -3,7 +3,7 @@
 # Runtime env (no rebuild per environment): VITE_API_URL, VITE_SHOP_URL, VITE_CLUB_TRACKING, VITE_VOICE, PORT (default 8080).
 FROM node:22-alpine AS build
 WORKDIR /src/web
-COPY web/package.json web/package-lock.json ./
+COPY web/package.json web/package-lock.json web/.npmrc ./
 RUN npm ci --no-audit --no-fund
 COPY shared /src/shared
 COPY web ./
