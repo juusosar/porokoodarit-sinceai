@@ -8,7 +8,14 @@ export const SHAFT_CLASS = 0; // same class + threshold as the Python pipeline (
 export const MIN_CONF = 0.25;
 
 export type Backend = "webgpu" | "wasm";
-export type ClubDetector = { session: ort.InferenceSession; backend: Backend; loadMs: number; error?: string };
+export type ClubDetector = {
+  session: ort.InferenceSession;
+  backend: Backend;
+  loadMs: number;
+  /** First inferences compile GPU shaders (seconds on Safari): done once at load, not during a swing. */
+  warmMs?: number;
+  error?: string;
+};
 export type Letterbox = { scale: number; padX: number; padY: number; w: number; h: number };
 /** Box centre in normalised source-frame coordinates (0..1). */
 export type Detection = { x: number; y: number; w: number; h: number; conf: number };
@@ -71,7 +78,19 @@ export async function hasShaderF16(): Promise<boolean> {
 
 let instance: Promise<ClubDetector> | null = null;
 
-/** Lazy singleton. WebGPU first; WASM (CPU) fallback so the benchmark still reports a number. */
+async function warmUp(d: ClubDetector): Promise<ClubDetector> {
+  const t = performance.now();
+  const c = document.createElement("canvas");
+  c.width = INPUT;
+  c.height = INPUT;
+  c.getContext("2d")!.fillRect(0, 0, INPUT, INPUT);
+  const lb = letterbox(INPUT, INPUT);
+  await detectLetterboxed(d, c, lb);
+  await detectLetterboxed(d, c, lb);
+  return { ...d, warmMs: performance.now() - t };
+}
+
+/** Lazy singleton, warmed up. WebGPU first; WASM (CPU) fallback so the benchmark still reports a number. */
 export function getClubDetector(): Promise<ClubDetector> {
   instance ??= (async () => {
     const t0 = performance.now();
@@ -79,7 +98,7 @@ export function getClubDetector(): Promise<ClubDetector> {
     if ("gpu" in navigator) {
       try {
         const session = await ort.InferenceSession.create(MODEL_URL, { executionProviders: ["webgpu"] });
-        return { session, backend: "webgpu" as const, loadMs: performance.now() - t0 };
+        return warmUp({ session, backend: "webgpu" as const, loadMs: performance.now() - t0 });
       } catch (e) {
         gpuError = (e as Error).message;
       }
@@ -87,7 +106,7 @@ export function getClubDetector(): Promise<ClubDetector> {
       gpuError = "WebGPU not available in this browser";
     }
     const session = await ort.InferenceSession.create(MODEL_URL, { executionProviders: ["wasm"] });
-    return { session, backend: "wasm" as const, loadMs: performance.now() - t0, error: gpuError };
+    return warmUp({ session, backend: "wasm" as const, loadMs: performance.now() - t0, error: gpuError });
   })();
   instance.catch(() => (instance = null));
   return instance;
