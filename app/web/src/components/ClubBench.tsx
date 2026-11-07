@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getClubDetector, hasShaderF16, type ClubDetector } from "@/lib/club/detector";
 import { getPoseLandmarker } from "@/lib/pose/landmarker";
-import { runSwingPipeline, type StageTiming, type SwingPipelineResult } from "@/lib/swing/pipeline";
+import { runSwingPipeline, warmUpPose, type StageTiming, type SwingPipelineResult } from "@/lib/swing/pipeline";
 
 // Dev page (not linked from the flow): main's swing processing (pose -> phases -> club track -> tempo, path) run
 // on this device, with timings per stage. The video never leaves the device.
@@ -40,8 +40,8 @@ function stageRow(name: string, s: StageTiming) {
         {s.frames} frames, {fmt(s.ms / 1000, 1)} s ({fmt(perFrame(s))} ms/frame)
         <br />
         <span className="text-muted-foreground">
-          decode {fmt(s.decodeMs / Math.max(s.frames, 1))} · pose {fmt(s.poseMs / Math.max(s.frames, 1))} · club{" "}
-          {fmt(s.clubMs / Math.max(s.frames, 1))} ms/frame
+          per frame: decode {fmt(s.decodeMs / Math.max(s.frames, 1))} · pose {fmt(s.poseMedianMs)} · club{" "}
+          {fmt(s.clubMedianMs)} ms (medians)
         </span>
       </dd>
     </>
@@ -60,13 +60,15 @@ export function ClubBench() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [saved] = useState<Report | null>(loadSaved);
+  const [poseWarmMs, setPoseWarmMs] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     hasShaderF16().then(setF16);
     setPhase("loading");
     Promise.all([getClubDetector(), getPoseLandmarker()])
-      .then(([d]) => {
+      .then(([d, lm]) => {
+        setPoseWarmMs(warmUpPose(lm));
         setDet(d);
         setPhase("ready");
       })
@@ -87,7 +89,15 @@ export function ClubBench() {
     setError(null);
     setCopied(false);
     setProgress(null);
-    const base = { backend: det.backend, shaderF16: f16, modelLoadMs: Math.round(det.loadMs), mode, userAgent: navigator.userAgent };
+    const base = {
+      backend: det.backend,
+      shaderF16: f16,
+      modelLoadMs: Math.round(det.loadMs),
+      clubWarmMs: Math.round(det.warmMs ?? NaN),
+      poseWarmMs: Math.round(poseWarmMs ?? NaN),
+      mode,
+      userAgent: navigator.userAgent,
+    };
     save({ ...base, partial: "in progress (page may have crashed)" });
     let last = 0;
     try {
@@ -132,7 +142,7 @@ export function ClubBench() {
     <main className="mx-auto max-w-xl space-y-4 p-4">
       <h1 className="font-display text-3xl font-bold uppercase italic">Swing processing benchmark</h1>
       <p className="text-sm text-muted-foreground">
-        Pose at 30 fps over the clip finds the swing phases, then pose + club detector run at the clip&apos;s own frame
+        Pose at 15 fps over the clip finds the swing phases, then pose + club detector run at the clip&apos;s own frame
         rate around the downswing. Same logic as the Python pipeline. Nothing is uploaded.
       </p>
 
@@ -141,6 +151,10 @@ export function ClubBench() {
         <dd>{det ? det.backend : phase === "loading" ? "loading models (~45 MB)…" : "–"}</dd>
         <dt>WebGPU shader-f16</dt>
         <dd>{f16 === null ? "–" : f16 ? "yes" : "no"}</dd>
+        <dt>Warm-up (club / pose)</dt>
+        <dd>
+          {fmt(det?.warmMs)} / {fmt(poseWarmMs)} ms
+        </dd>
       </dl>
       {det?.error && <p className="text-sm text-destructive">WebGPU failed, club model on CPU (slow): {det.error}</p>}
       {saved && phase !== "running" && phase !== "done" && (
@@ -183,7 +197,7 @@ export function ClubBench() {
 
       {phase === "running" && progress && (
         <p className="text-sm">
-          {progress.stage === 1 ? "Pass 1 (pose, 30 fps)" : "Pass 2 (pose + club)"}: {progress.done} / ~{progress.total}
+          {progress.stage === 1 ? "Pass 1 (pose, 15 fps)" : "Pass 2 (pose + club)"}: {progress.done} / ~{progress.total}
         </p>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
