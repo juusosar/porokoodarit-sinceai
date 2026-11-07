@@ -215,9 +215,7 @@ def pick_shaft(head_slug: str, a: Answers, trace: list[str]) -> dict:
                         else "default steel"
                     )
                 )
-                trace.append(
-                    f"shaft: flex {flex} from swing bucket {a.swing_bucket}; model matched on {rule}"
-                )
+                trace.append(f"shaft: flex {flex} from swing bucket {a.swing_bucket}; model matched on {rule}")
                 return pick
     raise ValueError(f"no shaft available for {head_slug}")
 

@@ -97,6 +97,22 @@
     "HAND_DEFAULT": {
       "part": "hand",
       "text": "Assuming {hand}-handed until you tell us."
+    },
+    "STOCK_SHAFT_TRADEOFF": {
+      "part": "purchase",
+      "text": "Stock means {stock_value} instead of {custom_value}."
+    },
+    "STOCK_LENGTH_TRADEOFF": {
+      "part": "purchase",
+      "text": "Standard length would be {delta_in} in {direction} than your fit: posture and strike suffer a bit."
+    },
+    "STOCK_LIE_TRADEOFF": {
+      "part": "purchase",
+      "text": "Standard lie would start shots about {offline_yd} yd {direction}."
+    },
+    "STOCK_GRIP_TRADEOFF": {
+      "part": "purchase",
+      "text": "Midsize is the biggest stock grip; oversize needs custom."
     }
   }
 }
