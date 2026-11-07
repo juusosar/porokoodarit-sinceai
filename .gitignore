@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+# Node
+node_modules/
+dist/
+.vite/
+# Env / secrets
+.env
+.env.*
+!.env.example
+# OS / editors
+.DS_Store
+.ipynb_checkpoints/
+# Local lab data (never commit synthetic splits)
+app/api/lab_data/

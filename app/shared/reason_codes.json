@@ -1,0 +1,29 @@
+{
+  "_doc": "Stable reason codes. Engine emits {code, params}; UI + LLM render 'text' (US English, imperial first). Add codes, never rename.",
+  "version": "1",
+  "codes": {
+    "HEAD_SKILL_MATCH": {"part": "head", "text": "Built for golfers who score {score_label}."},
+    "HEAD_SPEED_MATCH": {"part": "head", "text": "Suits a 7-iron swing around {speed_range} mph."},
+    "HEAD_PRIORITY": {"part": "head", "text": "Strong on what you asked for: {priorities}."},
+    "HEAD_OVER92_CAP": {"part": "head", "text": "Fast swing, but scores over 92 still need forgiveness."},
+    "HEAD_FORGIVENESS_PENALTY": {"part": "head", "text": "Forged 301s are less forgiving, so they rank lower for you."},
+    "FLEX_FROM_SPEED": {"part": "shaft", "text": "{flex} flex matches a {speed_range} mph swing."},
+    "MATERIAL_GRAPHITE": {"part": "shaft", "text": "Graphite: lighter and easier on the joints ({why})."},
+    "MATERIAL_STEEL": {"part": "shaft", "text": "Steel: more control at your swing speed."},
+    "SHAFT_MODEL_MATCH": {"part": "shaft", "text": "{model} fits your {flight} ball flight and {tempo} tempo."},
+    "LENGTH_FROM_HEIGHT": {"part": "length", "text": "At {height} tall, {length} keeps your posture natural."},
+    "LENGTH_LADY_FLEX": {"part": "length", "text": "Ladies-flex builds add 1 in back to the chart length."},
+    "LIE_FROM_STATIC": {"part": "lie", "text": "Height + wrist-to-floor put your lie at {lie}."},
+    "LIE_FROM_SHOTS": {"part": "lie", "text": "Your ball-line / impact data says {lie}."},
+    "GRIP_FROM_GLOVE": {"part": "grip", "text": "{grip} grip fits a {glove} glove."},
+    "GRIP_FROM_HAND": {"part": "grip", "text": "Hand length {hand_len} measured from photo: {grip} grip."},
+    "HAND_ASKED": {"part": "hand", "text": "{hand}-handed, as you told us."},
+    "PURCHASE_STOCK": {"part": "purchase", "text": "All stock: ships faster, 30-day returns."},
+    "PURCHASE_CUSTOM": {"part": "purchase", "text": "Custom because of {why}. Custom builds can't be returned."},
+    "SPEED_FROM_CARRY": {"part": "shaft", "text": "Speed estimated from your carry, adjusted for your club's loft."},
+    "SPEED_MEASURED": {"part": "shaft", "text": "Swing speed measured: {speed_range} mph."},
+    "CLOSE_CALL": {"part": "*", "text": "Close call: {value} vs {alternative}. Both work."},
+    "NEED_MORE_EVIDENCE": {"part": "*", "text": "Not sure yet. {next_step} will tighten this."},
+    "UNBUILDABLE": {"part": "*", "text": "That combo can't be built; picked nearest option."}
+  }
+}
