@@ -282,3 +282,30 @@ def test_gemini_logs_tokens_and_errors(caplog):
     lines = [r.getMessage() for r in caplog.records]
     assert any("level=low" in x and "in=900 out=60 thought=300" in x for x in lines)
     assert any("error=429" in x for x in lines)
+
+
+def test_thinking_level_retry_shares_the_call_deadline(monkeypatch):
+    from takomo_api.llm import gemini as G
+    from takomo_api.llm.base import LLMError, LLMRequest
+
+    clock = iter([0.0, 4.5, 99.0, 99.0, 99.0])
+    monkeypatch.setattr(G.time, "perf_counter", lambda: next(clock))
+    timeouts = []
+
+    class Models:
+        def generate_content(self, model, contents, config):
+            timeouts.append(config.http_options.timeout)
+            if "MINIMAL" in str(config.thinking_config.thinking_level):
+                raise RuntimeError("400 Thinking level is unsupported")
+            return type("R", (), {"text": '{"ok": 1}'})()
+
+    p = G.GeminiProvider("k")
+    p._client = type("C", (), {"models": Models()})()
+    req = LLMRequest(system="s", user="u", json_schema={}, model="m", timeout_s=7, thinking_level="minimal")
+    assert p.generate_json(req) == {"ok": 1}
+    assert timeouts == [7000, 2500]
+    p._level_override.clear()
+    clock2 = iter([0.0, 6.5, 99.0])
+    monkeypatch.setattr(G.time, "perf_counter", lambda: next(clock2))
+    with pytest.raises(LLMError):  # under 1 s left: no second try
+        p.generate_json(req)

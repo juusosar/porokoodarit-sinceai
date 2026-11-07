@@ -2,6 +2,8 @@
 
 import hmac
 import logging
+import threading
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +14,7 @@ from . import __version__
 from .config import get_settings
 from .engine import fit as engine
 from .llm import registry
-from .llm.chat import ChatReply, ChatRequest, chat, speakable
+from .llm.chat import ChatReply, ChatRequest, chat, speakable, warmup
 from .llm.explain import Explanation, Role, explain
 from .ratelimit import RateLimiter, client_key
 from .schema import SCHEMA_VERSION, FitRequest, FitState
@@ -22,9 +24,16 @@ from .tts import router as voice
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Off the request path: the server takes traffic while the LLM client warms up.
+    threading.Thread(target=warmup, name="llm-warmup", daemon=True).start()
+    yield
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Takomo Fitter API", version=__version__)
+    app = FastAPI(title="Takomo Fitter API", version=__version__, lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

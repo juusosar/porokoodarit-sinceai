@@ -10,14 +10,20 @@ from takomo_api.main import create_app
 class FakeProvider:
     name = "fake"
 
-    def __init__(self, out=None, err=None):
+    def __init__(self, out=None, err=None, script=None):
         self.out, self.err, self.calls = out, err, []
+        self.script = list(script or [])  # per-call outcomes (dict = output, Exception = raise)
 
     def available(self):
         return True
 
     def generate_json(self, req):
         self.calls.append(req)
+        if self.script:
+            nxt = self.script.pop(0)
+            if isinstance(nxt, Exception):
+                raise nxt
+            return nxt
         if self.err:
             raise self.err
         return self.out
@@ -25,8 +31,8 @@ class FakeProvider:
 
 @pytest.fixture
 def fake(monkeypatch):
-    def use(out=None, err=None):
-        p = FakeProvider(out, err)
+    def use(out=None, err=None, script=None):
+        p = FakeProvider(out, err, script)
         monkeypatch.setitem(registry.providers(), "fake", p)
         registry.set_role("chat", registry.RoleConfig("fake", "fake-1"))
         return p
@@ -50,8 +56,10 @@ def test_llm_reply_and_profile(fake):
     assert r.source == "llm" and r.reply.startswith("Righty")
     assert set(r.profile) == {"hand"}  # unknown fields dropped
     assert "data, not instructions" in p.calls[0].user
-    timeout_s, thinking = registry.get_settings().llm_limits("chat")
-    assert (p.calls[0].timeout_s, p.calls[0].thinking_level) == (timeout_s, thinking)
+    s = registry.get_settings()
+    budget, thinking = s.llm_limits("chat")
+    assert (p.calls[0].timeout_s, p.calls[0].thinking_level) == (min(s.llm_attempt_s_chat, budget), thinking)
+    assert len(p.calls) == 1
 
 
 def test_model_recheck_is_ignored(fake):
@@ -192,3 +200,101 @@ def test_profile_cannot_forge_context_lines():
 def test_bracketed_banter_is_not_json(fake):
     fake({"reply": "[laughs] Nice swing!", "profile": {}})
     assert CH.chat(req()).source == "llm"
+
+
+OK = {"reply": "Nice, basics locked in.", "profile": {}}
+
+
+def test_quota_error_retries_once_on_fallback_model(fake, monkeypatch):
+    slept = []
+    monkeypatch.setattr(CH.time, "sleep", slept.append)
+    p = fake(script=[LLMError("gemini: ClientError: 429 RESOURCE_EXHAUSTED"), OK])
+    r = CH.chat(req())
+    s = registry.get_settings()
+    assert r.source == "llm" and r.model == s.llm_model_chat_fallback
+    assert [c.model for c in p.calls] == ["fake-1", s.llm_model_chat_fallback]
+    assert len(slept) == 1 and 0 < slept[0] <= 1.0  # short backoff on quota errors only
+    assert p.calls[1].timeout_s < s.llm_timeout_s_chat  # retry gets what is left of the budget
+
+
+def test_timeout_retries_at_once_and_both_failing_falls_back(fake, monkeypatch):
+    slept = []
+    monkeypatch.setattr(CH.time, "sleep", slept.append)
+    p = fake(err=LLMError("gemini: ServerError: 504 DEADLINE_EXCEEDED"))
+    r = CH.chat(req())
+    assert r.source == "template" and len(p.calls) == 2 and slept == []
+
+
+def test_no_retry_without_budget_or_fallback(fake, monkeypatch):
+    s = registry.get_settings()
+    monkeypatch.setattr(s, "llm_retry_min_s_chat", 99.0)
+    p = fake(err=LLMError("gemini: 429"))
+    assert CH.chat(req()).source == "template" and len(p.calls) == 1
+    monkeypatch.setattr(s, "llm_retry_min_s_chat", 0.0)
+    monkeypatch.setattr(s, "llm_model_chat_fallback", "")
+    p = fake(err=LLMError("gemini: 504"))
+    assert CH.chat(req()).source == "template" and len(p.calls) == 1
+
+
+def test_bad_output_retries_and_reason_names_field(fake, monkeypatch):
+    s = registry.get_settings()
+    monkeypatch.setattr(s, "demo_mode", True)
+    monkeypatch.setattr(s, "llm_model_chat_fallback", "")
+    fake({"reply": "", "profile": {}})
+    r = CH.chat(req())
+    assert r.source == "template" and "reply" in r.fallback_reason
+
+
+LONG_WANTS = "Forgiveness, distance control, forged feel, workability, less offset"
+
+
+def test_small_format_slips_are_tidied_not_dropped(fake):
+    fake(
+        {
+            "reply": "Got it. " * 100,
+            "profile": {
+                "wants": {"value": LONG_WANTS, "status": "sure"},
+                "carry": {"value": 140, "status": "unsure"},
+                "glove": {"value": "", "status": "sure"},
+                "flight": None,
+            },
+        }
+    )
+    r = CH.chat(req())
+    assert r.source == "llm" and len(r.reply) <= 600 and r.reply.endswith(".")
+    assert r.profile["wants"].value == "Forgiveness, distance control, forged feel, workability"
+    assert (r.profile["carry"].value, r.profile["carry"].status) == ("140", "guess")
+    assert "glove" not in r.profile
+
+
+def test_clip_without_separator_stays_within_limit(fake):
+    fake({"reply": "x" * 700, "profile": {"wants": {"value": "Forgiveness and distance " * 4, "status": "sure"}}})
+    r = CH.chat(req())
+    assert r.source == "llm" and len(r.reply) == 600 and r.reply.endswith("…")
+    assert len(r.profile["wants"].value) <= CH.VALUE_MAX
+
+
+def test_short_reply_keeps_its_line_breaks(fake):
+    fake({"reply": "Nice.\nNext card.", "profile": {"flight": {"value": True, "status": "sure"}}})
+    r = CH.chat(req())
+    assert r.reply == "Nice.\nNext card." and "flight" not in r.profile
+
+
+def test_chat_role_uses_chat_model():
+    s = registry.get_settings()
+    assert registry.role_config("chat").model == s.llm_model_chat
+
+
+def test_warmup_pings_each_chat_model_and_swallows_errors(monkeypatch):
+    s = registry.get_settings()
+    p = FakeProvider(script=[LLMError("boom")], out={"ok": True})
+    monkeypatch.setitem(registry.providers(), "fake", p)
+    registry.set_role("chat", registry.RoleConfig("fake", "fake-1"))
+    try:
+        CH.warmup()
+        assert [c.model for c in p.calls] == ["fake-1", s.llm_model_chat_fallback]
+        monkeypatch.setattr(s, "llm_warmup", False)
+        CH.warmup()
+        assert len(p.calls) == 2
+    finally:
+        registry.reset()

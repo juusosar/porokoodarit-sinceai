@@ -17,6 +17,7 @@ class LLMRequest:
     timeout_s: float = 6.0
     thinking_level: str = ""
     temperature: float = 0.4
+    max_output_tokens: int | None = None
 
 
 class LLMProvider(Protocol):
