@@ -103,6 +103,78 @@ def _discrete(probs: dict, chosen) -> tuple[float, object | None, float]:
     return p, alt, q
 
 
+FORGED = ("301-cb", "301-mb")
+# characteristic -> (rating key, higher rating is better)
+PRIORITY_RATING = {
+    "forgiveness": ("forgiveness", True),
+    "distance": ("distance", True),
+    "forged feel": ("feel", True),
+    "distance control": ("distance_control", True),
+    "workability": ("workability", True),
+    "more offset": ("offset", True),
+    "less offset": ("offset", False),
+}
+
+
+def _priority_split(head_slug: str, rival: str, priorities: list[str]) -> tuple[list[str], list[str]]:
+    """Priorities where the chosen head rates at least as well as the rival (strong), and where it doesn't."""
+    hr, rr = C.head(head_slug)["ratings"], C.head(rival)["ratings"]
+    strong, weak = [], []
+    for c in priorities:
+        key, up = PRIORITY_RATING[c]
+        (strong if (hr[key] >= rr[key] if up else hr[key] <= rr[key]) else weak).append(c)
+    return strong, weak
+
+
+def _shaft_feel(sh: dict) -> Reason:
+    w = sh["weight_g"]
+    feel = (
+        "heavier, steadier feel and more control"
+        if w >= 115
+        else "mid weight, a balance of control and easy speed"
+        if w >= 90
+        else "light, easier to swing and helps the ball up"
+    )
+    return Reason(code="SHAFT_WEIGHT_FEEL", params={"weight_g": w, "feel": feel})
+
+
+def _shaft_launch(sh: dict) -> Reason:
+    fp = sh.get("flight_profile") or ["mid"]
+    launch = (
+        "lower, more penetrating flight"
+        if "high" not in fp and "low" in fp
+        else "higher launch, softer landing"
+        if "high" in fp and "low" not in fp
+        else "mid launch"
+    )
+    return Reason(code="SHAFT_LAUNCH", params={"launch": launch})
+
+
+def _shaft_tradeoff(sh: dict, alt_sh: dict) -> Reason:
+    d = alt_sh["weight_g"] - sh["weight_g"]
+    if alt_sh["flex"] != sh["flex"]:
+        softer = C.flex_index(alt_sh["flex"]) < C.flex_index(sh["flex"])
+        tradeoff = (
+            "softer flex, easier to launch and a little higher, with less control at the top of your speed range"
+            if softer
+            else "firmer flex, a little lower and tighter, better if your speed is at the top of the range"
+        )
+    elif abs(d) >= 10:
+        tradeoff = (
+            "lighter, easier to swing, slightly higher flight" if d < 0 else "heavier, steadier, slightly lower flight"
+        )
+    else:
+        tradeoff = "very similar weight and flight"
+    return Reason(code="SHAFT_ALT_TRADEOFF", params={"alternative": _shaft_label(alt_sh), "tradeoff": tradeoff})
+
+
+def _offline_yd(loft_deg: float, lie_err_deg: float, speed_mph: float) -> float:
+    """Start-line miss for a 7-iron whose lie is lie_err_deg off (face tilt ~ tan(loft) * sin(err))."""
+    aim = math.atan(math.tan(math.radians(loft_deg)) * math.sin(math.radians(abs(lie_err_deg))))
+    carry = max(speed_mph, 40) * Fu.YD_PER_MPH_AT_REF
+    return round(carry * math.tan(aim), 1)
+
+
 def run(req: FitRequest) -> FitState:
     a, m = req.answers, req.measurements
     fz = Fu.fuse(a, m)
@@ -169,17 +241,27 @@ def run(req: FitRequest) -> FitState:
     parts: dict[SpecPart, PartState] = {}
 
     # ---------------------------------------------------------------- head
+    p, alt, q = _discrete(p_top, head_slug)
+    # runner-up for "why this one": the close-call head, else the next best by score
+    rival = alt if alt and q >= 0.1 else next(s for s, _, _ in R.score_heads(base) if s != head_slug)
+    strong, weak = _priority_split(head_slug, rival, a.characteristics[:3])
     reasons = []
     if src["score"] != E.default:
         reasons.append(Reason(code="HEAD_SKILL_MATCH", params={"score_label": h["target_score_label"]}))
     reasons.append(Reason(code="HEAD_SPEED_MATCH", params={"speed_range": SPEED_RANGE[swing_bucket]}))
-    if a.characteristics:
-        reasons.append(Reason(code="HEAD_PRIORITY", params={"priorities": ", ".join(a.characteristics[:3])}))
+    if strong:
+        reasons.append(Reason(code="HEAD_PRIORITY", params={"priorities": ", ".join(strong)}))
+    if weak:
+        reasons.append(
+            Reason(
+                code="HEAD_ALT_STRONGER",
+                params={"alternative": C.head(rival)["name"], "priorities": ", ".join(weak)},
+            )
+        )
     if score_bucket == 5 and swing_bucket in (4, 5):
         reasons.append(Reason(code="HEAD_OVER92_CAP"))
-    if "forgiveness" in a.characteristics[:3] and head_slug not in ("301-cb", "301-mb"):
+    if "forgiveness" in a.characteristics[:3] and head_slug not in FORGED and rival in FORGED:
         reasons.append(Reason(code="HEAD_FORGIVENESS_PENALTY"))
-    p, alt, q = _discrete(p_top, head_slug)
     cc = None
     if alt and (q >= CLOSE_CALL_P or (q >= 0.1 and abs(modal[head_slug] - modal[alt]) <= 1)):
         cc = CloseCall(
@@ -208,6 +290,8 @@ def run(req: FitRequest) -> FitState:
         if base.age >= 70
         else None
     )
+    flight_txt = base.flight if src["flight"] != E.default else f"{base.flight} (assumed)"
+    tempo_txt = base.tempo if src["tempo"] != E.default else f"{base.tempo} (assumed)"
     reasons = [
         Reason(code="FLEX_FROM_SPEED", params={"flex": sh["flex"], "speed_range": SPEED_RANGE[swing_bucket]}),
         Reason(code="MATERIAL_GRAPHITE", params={"why": why_graphite})
@@ -215,19 +299,28 @@ def run(req: FitRequest) -> FitState:
         else Reason(code="MATERIAL_STEEL"),
         Reason(
             code="SHAFT_MODEL_MATCH",
-            params={"model": sh["model"], "flight": base.flight, "tempo": base.tempo},
+            params={"model": sh["model"], "flight": flight_txt, "tempo": tempo_txt},
         ),
+        _shaft_launch(sh),
+        _shaft_feel(sh),
     ]
     if E.measured in fz.speed.sources:
         reasons.append(Reason(code="SPEED_MEASURED", params={"speed_range": SPEED_RANGE[swing_bucket]}))
-    elif E.estimated in fz.speed.sources:
+    elif E.estimated in fz.speed.sources and a.carry_7i_yd is not None:
+        used = round(max(a.carry_7i_yd - Fu.CARRY_OVER_REPORT_YD, Fu.MIN_TRUE_CARRY_YD))
         reasons.append(Reason(code="SPEED_FROM_CARRY"))
+        reasons.append(Reason(code="CARRY_READ", params={"said": round(a.carry_7i_yd), "used": used}))
+        if a.own_7i_loft_deg is not None:
+            reasons.append(Reason(code="SPEED_FROM_CARRY_LOFT", params={"loft": round(a.own_7i_loft_deg, 1)}))
+        else:
+            reasons.append(Reason(code="SPEED_FROM_CARRY_TYPICAL_LOFT", params={"loft": round(Fu.REF_LOFT_DEG)}))
     cc = None
     neighbours = [b for b in (swing_bucket - 1, swing_bucket + 1) if 1 <= b <= 5]
     nb = max(neighbours, key=lambda b: speed_p[b - 1])
     if speed_p[nb - 1] >= CLOSE_CALL_P:
         alt_sh = R.pick_shaft(head_slug, replace(base, swing_bucket=nb), [])
         if alt_sh["slug"] != sh["slug"]:
+            reasons.append(_shaft_tradeoff(sh, alt_sh))
             edge = Fu.SPEED_EDGES[min(nb, swing_bucket) - 1]
             cc = CloseCall(
                 alternative=_shaft_label(alt_sh),
@@ -260,6 +353,7 @@ def run(req: FitRequest) -> FitState:
     ]
     if sh["flex"] == "lady":
         reasons.append(Reason(code="LENGTH_LADY_FLEX"))
+    reasons.append(Reason(code="LENGTH_EFFECT"))
     in_range = [L for L, pr in lprobs.items() if pr >= 0.1] or [length]
     parts[SpecPart.length] = PartState(
         part=SpecPart.length,
@@ -283,6 +377,15 @@ def run(req: FitRequest) -> FitState:
         for d in C.load()["lie_options_deg"]
     }
     p, alt, q = _discrete(liep, lie)
+    right = base.handedness == "right"
+    lie_effect = Reason(
+        code="LIE_EFFECT",
+        params={
+            "offline_yd": _offline_yd(h["seven_iron_loft_deg"], 1, fz.speed.mean),
+            "upright_dir": "left" if right else "right",
+            "flat_dir": "right" if right else "left",
+        },
+    )
     code = "LIE_FROM_SHOTS" if fz.lie_measured else "LIE_FROM_STATIC"
     lie_rng = [d for d, pr in liep.items() if pr >= 0.1] or [lie]
     parts[SpecPart.lie] = PartState(
@@ -292,8 +395,12 @@ def run(req: FitRequest) -> FitState:
         range=Range(low=min(lie_rng), high=max(lie_rng)),
         confidence=round(p, 3),
         evidence=_tags(lie_est.sources),
-        reasons=[Reason(code=code, params={"lie": _signed(lie, "°")})]
-        + ([] if fz.lie_measured else [Reason(code="NEED_MORE_EVIDENCE", params={"next_step": "A ball-line test"})]),
+        reasons=[Reason(code=code, params={"lie": _signed(lie, "°")}), lie_effect]
+        + (
+            [Reason(code="NEED_MORE_EVIDENCE", params={"next_step": "Your wrist-to-floor measurement"})]
+            if not fz.lie_measured and a.wrist_to_floor_cm is None and m.wrist_to_floor_cm is None
+            else []
+        ),
         close_call=CloseCall(alternative=_signed(alt, "°"), margin=round(p - q, 3), unit="probability")
         if alt is not None and q >= CLOSE_CALL_P
         else None,
@@ -312,7 +419,7 @@ def run(req: FitRequest) -> FitState:
     elif a.glove is not None:
         r = Reason(code="GRIP_FROM_GLOVE", params={"grip": grip, "glove": glove})
     else:
-        r = Reason(code="NEED_MORE_EVIDENCE", params={"next_step": "Your glove size or a hand photo"})
+        r = Reason(code="NEED_MORE_EVIDENCE", params={"next_step": "Your glove size"})
     parts[SpecPart.grip] = PartState(
         part=SpecPart.grip,
         value=grip,
@@ -423,10 +530,7 @@ def stock_advice(
     if lie != 0:
         # A standard club on a golfer who needs `lie`: error = 0 - lie. Too upright (need flatter) -> toe up
         # -> face points left (right-handed). Offline ~ carry * tan(atan(tan(loft) * sin(err))).
-        loft = math.radians(h["seven_iron_loft_deg"])
-        err = math.radians(-lie)
-        aim = math.atan(math.tan(loft) * math.sin(abs(err)))
-        carry = max(fz.speed.mean, 40) * Fu.YD_PER_MPH_AT_REF
+        err = -lie
         blockers.append(
             StockBlocker(
                 part=SpecPart.lie,
@@ -434,7 +538,7 @@ def stock_advice(
                 stock_value="Standard",
                 impact_code="STOCK_LIE_TRADEOFF",
                 params={
-                    "offline_yd": round(carry * math.tan(aim), 1),
+                    "offline_yd": _offline_yd(h["seven_iron_loft_deg"], err, fz.speed.mean),
                     # toe-up starts it left for a right-hander, right for a left-hander
                     "direction": ("left" if err > 0 else "right")
                     if hand == "right"
