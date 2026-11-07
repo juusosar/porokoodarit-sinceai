@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { buttonVariants } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useFit } from "@/lib/fit-store";
 import { analyzeVideo, MAX_SECONDS, type SwingAnalysis } from "@/lib/pose/analyze";
 import { getPoseLandmarker } from "@/lib/pose/landmarker";
@@ -15,7 +15,8 @@ const TEMPO_EXTRA_SD_S = 0.012;
 type Phase = "idle" | "loading" | "analyzing" | "done" | "error";
 
 export function Swing() {
-  const { setMeasurement } = useFit();
+  const { setMeasurement, commit } = useFit();
+  const nav = useNavigate();
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<SwingAnalysis | null>(null);
@@ -61,13 +62,26 @@ export function Swing() {
     abortRef.current = ctrl;
     setPhase("analyzing");
     try {
-      const r = await analyzeVideo(video, { onProgress: setProgress, signal: ctrl.signal });
+      const r = await analyzeVideo(video, {
+        onProgress: setProgress,
+        signal: ctrl.signal,
+      });
       if (ctrl.signal.aborted) return;
       setResult(r);
       if (r.tempo) {
         const sd = r.tempo.frameUncertaintyS + TEMPO_EXTRA_SD_S;
-        setMeasurement("backswing_s", { value: r.tempo.backswingS, sd, source: "measured", method: "video_pose" });
-        setMeasurement("downswing_s", { value: r.tempo.downswingS, sd, source: "measured", method: "video_pose" });
+        setMeasurement("backswing_s", {
+          value: r.tempo.backswingS,
+          sd,
+          source: "measured",
+          method: "video_pose",
+        });
+        setMeasurement("downswing_s", {
+          value: r.tempo.downswingS,
+          sd,
+          source: "measured",
+          method: "video_pose",
+        });
         setPhase("done");
       } else {
         setPhase("error");
@@ -175,16 +189,18 @@ export function Swing() {
         </p>
       )}
 
-      {CLUB_TRACKING && phase === "done" && <p className="text-xs text-muted-foreground">Club tracking: coming soon.</p>}
+      {CLUB_TRACKING && phase === "done" && (
+        <p className="text-xs text-muted-foreground">Club tracking: coming soon.</p>
+      )}
 
       <div className="flex gap-3">
-        <Link to="/launch-monitor" className={buttonVariants()}>
+        <Button disabled={busy} onClick={() => commit("swing").then(() => nav("/launch-monitor"))}>
           {phase === "done" ? "Nice. Next" : "Next"}
-        </Link>
+        </Button>
         {phase !== "done" && (
-          <Link to="/launch-monitor" className={buttonVariants({ variant: "ghost" })}>
+          <Button variant="ghost" disabled={busy} onClick={() => nav("/launch-monitor")}>
             Skip
-          </Link>
+          </Button>
         )}
       </div>
     </div>

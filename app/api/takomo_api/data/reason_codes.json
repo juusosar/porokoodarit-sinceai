@@ -113,6 +113,10 @@
     "STOCK_GRIP_TRADEOFF": {
       "part": "purchase",
       "text": "Midsize is the biggest stock grip; oversize needs custom."
+    },
+    "CONTRADICTION": {
+      "part": "*",
+      "text": "You said {asked} {asked_unit}, but we measured {measured} {unit}. Which is right?"
     }
   }
 }
