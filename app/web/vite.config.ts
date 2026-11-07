@@ -5,8 +5,9 @@ import path from "node:path";
 
 // Same alias + port conventions as Lovable exports, so their components drop in unchanged.
 export default defineConfig({
-  server: { host: "::", port: 5173 },
+  // fs.allow: this app + app/shared (reason codes, schema).
+  server: { host: "::", port: 5173, fs: { allow: [".", "../shared"] } },
   plugins: [react()],
-  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+  resolve: { alias: { "@": path.resolve(__dirname, "./src"), "@shared": path.resolve(__dirname, "../shared") } },
   test: { environment: "jsdom", globals: true, setupFiles: [] },
 });
