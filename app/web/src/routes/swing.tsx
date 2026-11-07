@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useSwingUpload } from '@/hooks/use-swing-upload';
 import { ActionSelector, FramingExample, GrontMessage, SwingChecklist, VideoHUD, ProcessingStatus, PrivacyNotice, GuideToggle } from '@/components/swing/SwingPanels';
 import { SwingCamera } from '@/components/swing/SwingCamera';
+import { VoiceToggle } from '@/features/voice';
 
 export const Route = createFileRoute("/swing")({
   head: () => ({
@@ -28,10 +29,10 @@ function Swing() {
     <main className="swing-theme min-h-screen bg-background font-sans text-foreground">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-6 py-4">
         <span className="font-display text-2xl font-bold italic tracking-wide">TAKOMO</span>
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">Find my fit · <span className="text-primary">Step 2 / 4</span></span>
+        <span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><VoiceToggle /><span>Find my fit · <span className="text-primary">Step 2 / 4</span></span></span>
       </header>
       <section className="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-10">
-        <GrontMessage message={saved ? (tempo ? 'Got your timing. Tempo helps pick the shaft profile; your answers guide the rest.' : 'No timing this time. That’s fine: we’ll lean on your answers.') : analyzing ? 'Reading your swing right here on your phone. Nothing gets uploaded.' : "One normal swing. Let’s see what your clubs are working with."} />
+        <GrontMessage line={saved ? (tempo ? 'swing_tempo' : 'swing_no_tempo') : analyzing ? 'swing_reading' : 'swing_intro'} />
         <div className="mb-8 mt-7 flex flex-wrap items-end justify-between gap-4"><h1 className="font-display text-5xl font-bold uppercase italic leading-none md:text-6xl">{flow.phase === 'preview' ? <>Check your <span className="text-primary">swing.</span></> : saved ? <>Swing <span className="text-primary">read.</span></> : analyzing ? <>Reading your <span className="text-primary">swing.</span></> : <>Let’s see your <span className="text-primary">swing.</span></>}</h1><span className="text-xs uppercase tracking-widest text-muted-foreground">{flow.phase === 'selection' ? '01 / Select' : flow.phase === 'preview' ? '02 / Review' : '03 / Read'}</span></div>
         {loading ? <p className="flex gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading your fitting…</p> : error ? <p role="alert">Could not load your profile. Refresh to try again.</p> : <>
           {!snapshot?.confirmed && <p className="mb-6 border-l-2 border-primary pl-4 text-sm text-muted-foreground">Finish your profile with Gront before sending a video. You can review the filming tips below.</p>}

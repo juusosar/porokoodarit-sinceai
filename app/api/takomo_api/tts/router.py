@@ -5,7 +5,10 @@ Off: no route, no token on /v1/explain, the web app uses the browser voice or st
 
 from __future__ import annotations
 
+import json
 import logging
+from functools import cache
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
@@ -28,10 +31,24 @@ def audio_token(text: str) -> str | None:
     return speech().sign(text) if text else None
 
 
+@cache
+def host_lines() -> dict[str, str]:
+    """Fixed host banner lines (app/shared/host_lines.json), as the voice reads them: paragraphs joined."""
+    raw = json.loads((Path(__file__).resolve().parents[1] / "data" / "host_lines.json").read_text())["lines"]
+    return {k: " ".join(v) for k, v in raw.items()}
+
+
 def build_router() -> APIRouter:
     settings = get_settings()
     limiter = RateLimiter(settings.tts_rate_per_min)
     router = APIRouter()
+
+    @router.get("/v1/voice/lines")
+    def fixed_lines() -> dict:
+        """Tokens for the fixed banner lines. Same text every visit, so after the first play each clip is a
+        cache hit (server LRU + browser cache): the daily character budget pays for each line about once."""
+        sp = speech()
+        return {"tokens": {k: sp.sign(t) for k, t in host_lines().items()}}
 
     @router.get("/v1/speak")
     def speak(
