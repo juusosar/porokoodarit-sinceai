@@ -88,3 +88,33 @@ export async function postExplain(
   if (!r.ok) throw new Error(`API ${r.status}`);
   return r.json();
 }
+
+// ---------------------------------------------------------------- host chat (POR-24)
+
+export type ChatField = { value: string; status: "sure" | "guess" };
+export type ChatReply = {
+  source: "llm" | "template";
+  provider: string;
+  model: string | null;
+  latency_ms: number;
+  reply: string;
+  profile: Record<string, ChatField>;
+  recheck: { field: string; reason: string } | null;
+  fallback_reason: string | null;
+};
+
+/** One profiling turn with the host. Only chat text + the profile labels are sent; never video. */
+export async function postChat(
+  messages: { role: "user" | "assistant"; text: string }[],
+  profile: Record<string, ChatField>,
+  signal?: AbortSignal,
+): Promise<ChatReply> {
+  const r = await fetch(`${API_URL}/v1/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, profile }),
+    signal,
+  });
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}

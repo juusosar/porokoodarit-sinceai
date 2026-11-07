@@ -9,7 +9,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 ## Components
 | Part | Tech | Where it runs | Notes |
 |---|---|---|---|
-| `app/web` | Vite + React 18 + TS + Tailwind 3 (shadcn/Lovable token layout) | Phone browser, hosted on Vercel | Mobile first. Lovable exports drop in (`@/` alias, HSL CSS vars, `components/ui`). |
+| `app/web` | Lovable UI ported to a Vite SPA: React 19 + TanStack Router + Tailwind 4 + shadcn | Phone browser, hosted on Vercel | Mobile first. Chat profiling (`/v1/chat`), engine fit (`/v1/fit`), host lines (`/v1/explain`). State in localStorage; swing tempo read on device (MediaPipe). `app/web_legacy` = previous MVP UI, reference only. |
 | Pose | MediaPipe Tasks JS, pose landmarker lite | Phone browser | Skeleton overlay + swing-window cut. Landmarks only leave the phone. |
 | `app/api` | FastAPI + Pydantic v2, Python 3.12 | Cloud Run, min 1 instance (US) | Engine, fusion, LLM + TTS proxy, settings. Keys server-side only. |
 | Club tracking | SwingTrace YOLO11m, ONNX FP16, onnxruntime-web WebGPU (`web/src/lib/club`) | Phone browser | Decided 7 Nov: on device, video never uploaded. Benchmark page `/bench/club`. |
