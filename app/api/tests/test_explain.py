@@ -223,9 +223,12 @@ def test_llm_limits_per_role(monkeypatch):
         "TAKOMO_LLM_TIMEOUT_S_FINAL",
         "TAKOMO_LLM_THINKING_LEVEL_STEP",
         "TAKOMO_LLM_THINKING_LEVEL_FINAL",
+        "TAKOMO_LLM_TIMEOUT_S_CHAT",
+        "TAKOMO_LLM_THINKING_LEVEL_CHAT",
     ):
         monkeypatch.delenv(k, raising=False)
     s = Settings(_env_file=None)
     assert s.llm_limits("step_line") == (6.0, "minimal")
     assert s.llm_limits("final_walkthrough") == (12.0, "low")
+    assert s.llm_limits("chat") == (12.0, "minimal")
     assert s.llm_thinking_level == "low"  # back-compat alias
