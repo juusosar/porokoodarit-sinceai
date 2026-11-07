@@ -18,3 +18,4 @@ dist/
 .ipynb_checkpoints/
 # Local lab data (never commit synthetic splits)
 app/api/lab_data/
+*.egg-info/

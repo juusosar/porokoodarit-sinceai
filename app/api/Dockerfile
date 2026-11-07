@@ -4,5 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY pyproject.toml ./
 COPY takomo_api ./takomo_api
 RUN pip install --no-cache-dir .
+RUN useradd --create-home --uid 10001 app
+USER app
 # Cloud Run sets $PORT
 CMD ["sh", "-c", "uvicorn takomo_api.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

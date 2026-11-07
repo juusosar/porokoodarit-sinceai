@@ -10,3 +10,12 @@ describe("App shell", () => {
     expect(screen.getByRole("link", { name: /start fitting/i }).getAttribute("href")).toBe("/profile");
   });
 });
+
+describe("routing", () => {
+  it("redirects unknown paths to intro", () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+    window.history.pushState({}, "", "/nope");
+    render(<App />);
+    expect(screen.getByRole("heading", { name: /find your fit/i })).toBeTruthy();
+  });
+});

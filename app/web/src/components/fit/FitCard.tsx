@@ -7,7 +7,8 @@ const PARTS = [
   ["length", "Length"],
   ["lie", "Lie"],
   ["grip", "Grip"],
-  ["purchase", "Stock / custom"],
+  ["hand", "Hand"],
+  ["purchase", "Stock/custom"],
 ] as const;
 
 export type FitCardValue = { label: string; confidence: number };
@@ -16,7 +17,7 @@ export function FitCard({ values = {}, className }: { values?: Partial<Record<st
   return (
     <section aria-label="Your fit so far" className={cn("border border-border bg-card p-3", className)}>
       <h2 className="mb-2 text-base text-muted-foreground">Your fit so far</h2>
-      <dl className="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
+      <dl className="grid grid-cols-4 gap-x-3 gap-y-2 text-sm">
         {PARTS.map(([key, name]) => {
           const v = values[key];
           return (
