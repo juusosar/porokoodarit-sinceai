@@ -15,6 +15,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 | `app/vision` | YOLO11m club tracking (ONNX / TensorRT FP16) | Modal GPU (T4/L4) | Opt-in upload of ~1.5 s 640px clip, deleted after. Feature flag. |
 | `app/shared` | JSON Schema (from Pydantic) + reason codes | Both | `fit_state.schema.json` → TS types via `npm run gen:types`. CI checks drift. |
 | LLM | Own thin `LLMProvider` adapter; Gemini first | Called from API | Roles → models in config. Demo panel switch only when `TAKOMO_DEMO_MODE=true` + `X-Demo-Token`, model allowlist. `/v1/explain` takes inputs (FitRequest), re-runs the engine server-side, never a client state. JSON output validated (Pydantic) + spec-match guard + template fallback; rate limit + body cap per instance. |
+| Voice (TTS) | `api/takomo_api/tts/` + `web/src/features/voice/`, ElevenLabs Flash v2.5 | Called from API | Off by default (`TAKOMO_TTS_PROVIDER=none`). On: `/v1/explain` adds an HMAC `audio_token` to each spoken_line; `GET /v1/speak` streams mp3 only for signed lines (no open TTS proxy), memory LRU cache, rate limit + daily char cap. Web: `VITE_VOICE=on|browser|off`, mute toggle (remembered), captions always on, browser speechSynthesis fallback. |
 | Jev (TypeSafe) | Optional adapter | Called from API | Flagged. Normaliser / guardrail / close-call 2nd opinion. Never decides. |
 | Voice | `TTSProvider` (ElevenLabs Flash) | Called from API | Fixed lines pre-generated, dynamic lines after guardrail. Captions always on. |
 | Storage | Browser state; opt-in MongoDB Atlas | Browser / Atlas | "Save my fitting" (no media, 30 d) + anonymous events. |
@@ -25,6 +26,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
    (per part: value, range, confidence, evidence, reason codes, close call) + diff vs previous.
 3. UI updates the live fit card (changed parts pulse) and shows the What-changed toast.
 4. Optional: `POST /v1/explain` turns `FitState` into host lines (LLM, guarded, fallback templates).
+5. Optional: `GET /v1/speak` reads a signed host line aloud (voice on only).
 
 ## Milestones → Linear
 | M | Linear | Scope |

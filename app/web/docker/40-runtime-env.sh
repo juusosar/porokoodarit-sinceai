@@ -6,7 +6,8 @@ cat > /usr/share/nginx/html/env.js <<JS
 window.__TAKOMO_ENV__ = {
   VITE_API_URL: "$(esc "${VITE_API_URL:-}")",
   VITE_SHOP_URL: "$(esc "${VITE_SHOP_URL:-}")",
-  VITE_CLUB_TRACKING: "$(esc "${VITE_CLUB_TRACKING:-}")"
+  VITE_CLUB_TRACKING: "$(esc "${VITE_CLUB_TRACKING:-}")",
+  VITE_VOICE: "$(esc "${VITE_VOICE:-}")"
 };
 JS
 echo "runtime env written to /usr/share/nginx/html/env.js"
