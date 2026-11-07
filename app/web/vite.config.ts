@@ -9,6 +9,8 @@ export default defineConfig({
   // fs.allow: this app + app/shared (reason codes, schema).
   server: { host: "::", port: 5173, fs: { allow: [".", "../shared"] } },
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), react(), tailwindcss()],
+  // onnxruntime-web finds its .wasm via import.meta.url; pre-bundling breaks that in dev.
+  optimizeDeps: { exclude: ["onnxruntime-web"] },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src"), "@shared": path.resolve(__dirname, "../shared") },
     dedupe: ["react", "react-dom", "@tanstack/react-router"],
