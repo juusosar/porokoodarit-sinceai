@@ -32,7 +32,7 @@ takomo_api = ["data/*.json", "prompts/*.md", "swing/upstream/UPSTREAM"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-# verbatim copy of main's code (app/vision/sync-main.sh): not reformatted here
+# research swing code kept as written (see app/vision/research/README.md): not reformatted here
 extend-exclude = ["takomo_api/swing/upstream"]
 
 [tool.ruff.lint]

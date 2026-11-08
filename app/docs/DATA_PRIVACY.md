@@ -1,6 +1,6 @@
 # Data & privacy
 
-Where each piece of data is processed and stored, and for how long. Reflects the code on `dev` (8 Nov 2026).
+Where each piece of data is processed and stored, and for how long. Reflects the code on `main` (8 Nov 2026).
 Hosting ("device" = the golfer's phone or computer): API on Google Cloud Run, europe-north1 (Finland). Gemini via Vertex AI, location `global`. Web on Vercel.
 
 | Data | Processed on | Sent to | Stored | Retention |

@@ -1,2 +1,2 @@
 7234843c74c0e45ea877ad7d6394ac98e6ce7f6a
-Synced from main by app/vision/sync-main.sh on 2026-11-08. Do not edit these files here.
+Copied from the old main branch (this SHA) on 2026-11-08. Since the dev -> main migration (8 Nov) these are the only copies: edit the algorithm here, keep app-only fixes in ../measure.py.

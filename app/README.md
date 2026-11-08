@@ -9,7 +9,7 @@ app/
   web_legacy/  previous MVP UI, reference only (not built or deployed)
   api/     FastAPI: engine, fusion, swing analysis, LLM + voice proxy
   shared/  fit_state.schema.json (generated), reason_codes.json, host_lines.json
-  vision/  ONNX export, swing research pipeline (research/), sync-main.sh, unused Modal stub
+  vision/  ONNX export, swing research pipeline + ball-line photos (research/), unused Modal stub
   deploy/  container build + deploy scripts (any host)
   docs/
 ```
