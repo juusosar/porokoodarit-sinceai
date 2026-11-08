@@ -58,3 +58,26 @@ describe('reading source + down-the-line samples', () => {
     expect(addressSamples(600, 3)).toEqual([0, 1, 2]);
   });
 });
+
+describe('every video data point shown', () => {
+  const rec = {
+    filename: 's.mp4', size: 1, encodedFps: 30, slowMo: 8, analyzedAt: '2026-11-08T03:00:00Z', source: 'server' as const,
+    tempo: { backswingS: 0.9, downswingS: 0.3, ratio: 3, sd: 0.016 }, speed: { value: 78.4, sd: 12 }, shaftM: 0.85, dtl: true,
+    events: { Address: 1000, Top: 1900, Impact: 2200, 'Toe-up': 1300 },
+    read: { samples: 960, fps: 240, durationS: 4, heightM: 1.8, heightFrom: 'profile' as const, shaftUsedM: 0.85, shaftFrom: 'down_the_line' as const, handTravelM: 1.21, handSpeedMps: 4.03,
+      dtl: { samples: 900, addressMs: 1000, stillSamples: 40, headFound: 8, shaftPx: 590, shoulderPx: 200 } },
+    notes: ['height_default'],
+  };
+  it('lists each step with its numbers and marks what the engine gets', async () => {
+    const { swingDataSteps, swingSummaryLine } = await import('@/lib/swing-data');
+    const steps = swingDataSteps(rec);
+    expect(steps.map(s => s.title)).toEqual(['Body pose read on this device', 'Swing phases (main’s algorithm)', 'Timing', 'Down-the-line view', 'Speed estimate (double pendulum)', 'Notes']);
+    expect(steps[1].points.map(p => p.label)).toEqual(['Address', 'Toe up', 'Top', 'Impact']);
+    const all = steps.flatMap(s => s.points);
+    expect(all.filter(p => p.engine).map(p => p.label)).toEqual(['Backswing', 'Downswing', 'Club speed (estimate)']);
+    expect(all.find(p => p.label === 'Hand travel, top to impact')?.value).toBe('1.21 m');
+    expect(all.find(p => p.label === 'Club head found at address')?.value).toBe('8 of 40 still samples');
+    expect(swingSummaryLine(rec)).toBe('backswing 0.90 s · downswing 0.30 s · tempo 3.0:1 · club speed ~78 mph (estimate) · hands to club head 33.5 in');
+    expect(swingDataSteps(null)).toEqual([]);
+  });
+});
