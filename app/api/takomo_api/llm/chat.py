@@ -129,10 +129,36 @@ def _after_card4(req: ChatRequest) -> bool:
     return any(m.role == "user" and m.text.startswith("[Card 4") for m in req.messages)
 
 
-def _needs_confirm(req: ChatRequest) -> bool:
-    """Turns after which the UI shows Yes/No: card 4 or free text once the cards are done."""
+_QUESTION = re.compile(
+    r"\?\s*$|^(what|whats|what's|why|how|which|who|where|when|can|could|do|does|did|is|are|should|would|will)\b",
+    re.I,
+)
+
+
+def _is_question(text: str) -> bool:
+    """Golfer asks something (wants an answer) rather than giving a value."""
+    return bool(_QUESTION.search(text.strip()))
+
+
+def _needs_confirm(req: ChatRequest, learned: bool = False) -> bool:
+    """Turns after which the UI needs a fresh Yes/No: the card 4 summary, or a free-text turn after it
+    that gave or fixed a value. A question gets an answer only; the earlier summary's buttons stay."""
+    if not _after_card4(req):
+        return False
     last = req.messages[-1].text.strip()
-    return _after_card4(req) and not last.lower().startswith("no, something")
+    if last.startswith("[Card 4"):
+        return True
+    if last.lower().startswith("no, something"):
+        return False
+    return learned or not _is_question(last)
+
+
+_CONFIRM_RE = re.compile(r"\s*" + re.escape(CONFIRM), re.I)
+
+
+def _drop_confirm(reply: str) -> str:
+    """Remove the confirm question from an answer to a golfer's question (keeps a fallback line)."""
+    return _CONFIRM_RE.sub("", reply).strip() or reply
 
 
 _BUGS = (
@@ -159,6 +185,10 @@ SCRIPTED = {
     "card3": "Solid. Last one: what bugs you about your irons?",
     "recheck": "Thanks, updated.",
     "other": "Got it. Use the card below and we'll keep moving.",
+    "question": (
+        "Good question, I couldn't answer that just now. "
+        "Your summary is above: tap Yes if it looks right, or No to fix something."
+    ),
 }
 
 
@@ -193,6 +223,8 @@ def template_reply(req: ChatRequest, why: str | None, t0: float) -> ChatReply:
         reply = SCRIPTED["fix"]
     elif _needs_confirm(req):
         reply = _summary(req.profile | profile)
+    elif _after_card4(req) and _is_question(last):
+        reply = SCRIPTED["question"]
     elif last.startswith("[Card 1"):
         reply = SCRIPTED["card1"]
     elif last.startswith("[Card 2"):
@@ -407,9 +439,13 @@ def chat(req: ChatRequest) -> ChatReply:
         return template_reply(req, _public(why), t0)
     profile = {k: v for k, v in out.profile.items() if k in PROFILE_FIELDS and v is not None}
     reply = out.reply
-    # The UI only shows Yes/No after this exact question: never leave the golfer without buttons.
-    if _needs_confirm(req) and CONFIRM.lower() not in reply.lower():
-        reply = f"{reply.rstrip()} {CONFIRM}"
+    # The UI shows fresh Yes/No after this exact question: end every summary turn with it, but never
+    # tack it onto an answer to the golfer's own question (the earlier summary's buttons stay up).
+    if _needs_confirm(req, learned=bool(profile)):
+        if CONFIRM.lower() not in reply.lower():
+            reply = f"{reply.rstrip()} {CONFIRM}"
+    elif _after_card4(req) and _is_question(req.messages[-1].text):
+        reply = _drop_confirm(reply)
     return ChatReply(
         source="llm",
         provider=cfg.provider,

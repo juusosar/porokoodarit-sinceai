@@ -16,6 +16,26 @@ function textOf(m: UIMessage) {
 export const LOCAL_PREFIX = "local";
 const OFFLINE_LINE = "Lost the signal for a sec, but I've got your answers. Let's keep going.";
 
+const CONFIRM_RE = /get that right|did i get|sound right|is that right/i;
+export const FIX_TEXT = "No, something's off";
+
+/**
+ * Whether the Yes/No buttons belong under the chat: the latest host summary asked "Did I get that
+ * right?" (or the API was unreachable) and the golfer hasn't said No since. A question in between
+ * gets an answer without the confirm line, so the buttons stay up. Hidden while a reply is pending.
+ */
+export function confirmPending(messages: UIMessage[]): boolean {
+  const last = messages.at(-1);
+  if (!last || last.role !== "assistant") return false;
+  if (last.id.startsWith(LOCAL_PREFIX)) return true;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "user" && textOf(m).trim().startsWith(FIX_TEXT)) return false;
+    if (m.role === "assistant" && CONFIRM_RE.test(textOf(m))) return true;
+  }
+  return false;
+}
+
 let seq = 0;
 const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 

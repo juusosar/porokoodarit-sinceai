@@ -8,7 +8,7 @@ import { useFitting } from "@/hooks/use-fitting";
 import { saveFitting } from "@/lib/fitting.functions";
 import { getFittingToken, startNewFitting } from "@/lib/fitting-session";
 import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
-import { LOCAL_PREFIX, useHostChat } from "@/hooks/use-host-chat";
+import { FIX_TEXT, confirmPending, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
 import { useSpeakLine, VoiceToggle } from "@/features/voice";
 
@@ -248,13 +248,11 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
             />
           )}
           {pacing.questionsReady && cardIdx > CARDS.length && (() => {
-            const last = messages[messages.length - 1];
-            const text = last?.role === "assistant" ? last.parts.map((p) => (p.type === "text" ? p.text : "")).join("") : "";
-            if (!/get that right|did i get|sound right|is that right/i.test(text) && !last?.id.startsWith(LOCAL_PREFIX)) return null;
+            if (!confirmPending(messages)) return null;
             return (
               <div data-scroll-reveal className="flex gap-2 pl-11">
                 <Button type="button" disabled={saving} onClick={proceed} className="h-auto whitespace-normal rounded-none px-5 py-2.5 font-display text-sm font-bold uppercase italic tracking-wide">{saving ? "Saving…" : "Yes, let's continue"}</Button>
-                <Button type="button" variant="outline" disabled={saving} onClick={() => { setConfirmed(false); sendMessage({ text: "No, something's off" }); }} className="h-auto rounded-none px-5 py-2.5 font-display text-sm font-bold uppercase italic tracking-wide">No</Button>
+                <Button type="button" variant="outline" disabled={saving} onClick={() => { setConfirmed(false); sendMessage({ text: FIX_TEXT }); }} className="h-auto rounded-none px-5 py-2.5 font-display text-sm font-bold uppercase italic tracking-wide">No</Button>
               </div>
             );
           })()}
