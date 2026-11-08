@@ -298,3 +298,40 @@ def test_warmup_pings_each_chat_model_and_swallows_errors(monkeypatch):
         assert len(p.calls) == 2
     finally:
         registry.reset()
+
+
+def after_summary(text):
+    """Free-text turn after the card 4 summary."""
+    r = card4()
+    return CH.ChatRequest(
+        messages=[
+            *r.messages,
+            {"role": "assistant", "text": f"Here's what I've got. {CH.CONFIRM}"},
+            {"role": "user", "text": text},
+        ],
+        profile=r.profile,
+    )
+
+
+@pytest.mark.parametrize("q", ["What does wrist to floor mean?", "how is carry measured", "Why forgiveness"])
+def test_question_after_summary_gets_answer_not_confirm(fake, q):
+    fake({"reply": f"It's from your wrist crease to the floor in golf shoes. {CH.CONFIRM}", "profile": {}})
+    r = CH.chat(after_summary(q))
+    assert r.source == "llm" and CH.CONFIRM.lower() not in r.reply.lower() and r.reply.startswith("It's from")
+
+
+def test_value_after_summary_reconfirms(fake):
+    fake({"reply": "150 it is.", "profile": {"carry": {"value": "150", "status": "sure"}}})
+    r = CH.chat(after_summary("Actually my carry is more like 150?"))
+    assert r.reply.endswith(CH.CONFIRM)
+    fake({"reply": "Got it, 150.", "profile": {}})
+    assert CH.chat(after_summary("My carry is 150")).reply.endswith(CH.CONFIRM)
+
+
+def test_template_question_after_summary_has_no_confirm():
+    registry.set_role("chat", registry.RoleConfig("template", "-"))
+    try:
+        r = CH.chat(after_summary("What is lie angle?"))
+        assert CH.CONFIRM not in r.reply and r.reply == CH.SCRIPTED["question"]
+    finally:
+        registry.reset()
