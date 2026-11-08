@@ -32,7 +32,7 @@ function Swing() {
   return (
     <main className="swing-theme min-h-screen bg-background font-sans text-foreground">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-6 py-4">
-        <TakomoLogo className="h-5" />
+        <TakomoLogo className="h-6 shrink-0" />
         <span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><VoiceToggle /><span>Find my fit · <span className="text-primary">Step 2 / 4</span></span></span>
       </header>
       <section className="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-10">
