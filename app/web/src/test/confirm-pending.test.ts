@@ -22,7 +22,15 @@ describe("confirmPending", () => {
     expect(confirmPending(fix)).toBe(false);
     expect(confirmPending([...fix, u("Carry is 150"), a("150 it is. Did I get that right?")])).toBe(true);
   });
-  it("shows Yes/No after an offline line", () => {
-    expect(confirmPending([u("hi"), a("Lost the signal", "local-1")])).toBe(true);
+  it("shows Yes/No after an offline line, and after a question that follows it", () => {
+    const off = [u("[Card 4: What bugs you] Slice"), a("Lost the signal", "local-1")];
+    expect(confirmPending(off)).toBe(true);
+    expect(confirmPending([...off, u("what happens next?"), a("You'll film a swing next.")])).toBe(true);
+  });
+  it("shows Yes/No after a question that follows No (golfer never stranded)", () => {
+    expect(confirmPending([...summary, u(FIX_TEXT), a("Which part?"), u("what is wrist to floor?"), a("Wrist crease to floor.")])).toBe(true);
+  });
+  it("reads a typed No like the button", () => {
+    expect(confirmPending([...summary, u("no, something's off"), a("Which part?")])).toBe(false);
   });
 });

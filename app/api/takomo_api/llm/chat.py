@@ -129,8 +129,9 @@ def _after_card4(req: ChatRequest) -> bool:
     return any(m.role == "user" and m.text.startswith("[Card 4") for m in req.messages)
 
 
+# Ends with "?" or opens with a question word followed by a space ("Can't remember, 140" is no question).
 _QUESTION = re.compile(
-    r"\?\s*$|^(what|whats|what's|why|how|which|who|where|when|can|could|do|does|did|is|are|should|would|will)\b",
+    r"\?\s*$|^(what|whats|what's|why|how|which|who|where|when|can|could|do|does|is|are|should|would|will)\s",
     re.I,
 )
 
@@ -153,11 +154,15 @@ def _needs_confirm(req: ChatRequest, learned: bool = False) -> bool:
     return learned or not _is_question(last)
 
 
-_CONFIRM_RE = re.compile(r"\s*" + re.escape(CONFIRM), re.I)
+# The confirm line and the close variants the web also reads as one (index.tsx used to match these).
+_CONFIRM_RE = re.compile(
+    r"\s*(did i get that right|(does|did) that sound right|sound right|is that right)\s*\?",
+    re.I,
+)
 
 
 def _drop_confirm(reply: str) -> str:
-    """Remove the confirm question from an answer to a golfer's question (keeps a fallback line)."""
+    """Remove confirm questions from an answer to a golfer's question (keeps a fallback line)."""
     return _CONFIRM_RE.sub("", reply).strip() or reply
 
 
@@ -186,8 +191,7 @@ SCRIPTED = {
     "recheck": "Thanks, updated.",
     "other": "Got it. Use the card below and we'll keep moving.",
     "question": (
-        "Good question, I couldn't answer that just now. "
-        "Your summary is above: tap Yes if it looks right, or No to fix something."
+        "Good question, I couldn't answer that just now. Tap Yes if your summary looks right, or No to fix something."
     ),
 }
 
@@ -441,7 +445,9 @@ def chat(req: ChatRequest) -> ChatReply:
     reply = out.reply
     # The UI shows fresh Yes/No after this exact question: end every summary turn with it, but never
     # tack it onto an answer to the golfer's own question (the earlier summary's buttons stay up).
-    if _needs_confirm(req, learned=bool(profile)):
+    # Only new or changed values count: models often echo known fields back while answering.
+    learned = any(k not in req.profile or req.profile[k].value != v.value for k, v in profile.items())
+    if _needs_confirm(req, learned=learned):
         if CONFIRM.lower() not in reply.lower():
             reply = f"{reply.rstrip()} {CONFIRM}"
     elif _after_card4(req) and _is_question(req.messages[-1].text):
