@@ -24,6 +24,13 @@ export const swingRecordSchema = z.object({
   source: z.enum(["server", "device"]).optional(),
   /** Upstream algorithm version when the API read it, e.g. "main@7234843". */
   algorithm: z.string().max(40).optional(),
+  /** API notes (why a value is missing or less certain), or why the device read was used instead. */
+  notes: z.array(z.string().max(40)).max(12).optional(),
+  fallback: z.enum(["off", "unreachable", "no_read"]).optional(),
+  /** Own shaft length from the optional down-the-line clip (API), used for the speed estimate. */
+  shaftM: z.number().min(0.5).max(1.3).nullable().optional(),
+  /** Down-the-line clip given (and read on the device). */
+  dtl: z.boolean().optional(),
   analyzedAt: z.string().datetime(),
 });
 export type SwingRecord = z.infer<typeof swingRecordSchema>;
