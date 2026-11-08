@@ -192,7 +192,7 @@ def test_fixed_host_lines_are_signed_and_speakable(voice_on):
     p, c = voice_on()
     tokens = c.get("/v1/voice/lines").json()["tokens"]
     lines = host_lines()
-    assert set(tokens) == set(lines) and "swing_intro" in lines
+    assert set(tokens) == set(lines) and {"swing_intro", "chat_greeting"} <= set(lines)
     text = lines["enrichment_intro"]
     assert text.startswith("No extra numbers?") and "Got a few to share?" in text
     q = {"text": text, "token": tokens["enrichment_intro"]}

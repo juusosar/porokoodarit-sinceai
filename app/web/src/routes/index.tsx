@@ -10,7 +10,7 @@ import { getFittingToken, startNewFitting } from "@/lib/fitting-session";
 import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
 import { FIX_TEXT, confirmPending, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
-import { useSpeakLine, VoiceToggle } from "@/features/voice";
+import { hostText, preloadHostLines, useHostLine, useSpeakLine, VoiceToggle } from "@/features/voice";
 import { HostMark } from "@/components/HostMark";
 
 export const Route = createFileRoute("/")({
@@ -45,7 +45,7 @@ const FIELDS: { key: string; label: string }[] = [
 const GREETING: UIMessage = {
   id: "greet",
   role: "assistant",
-  parts: [{ type: "text", text: "Hey, Gront here. I'll fit you like I'm standing next to you on the range. Quick taps first, then we talk. Start with the basics:" }],
+  parts: [{ type: "text", text: hostText("chat_greeting") }],
 };
 
 function Index() {
@@ -64,6 +64,7 @@ function Index() {
 }
 
 function Intro({ onStart, onResume, loading }: { onStart: () => void; onResume?: (() => void) | undefined; loading: boolean }) {
+  useEffect(preloadHostLines, []); // greeting token ready by the time "Start" is tapped
   return (
     <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-6 py-12 md:grid-cols-2 md:py-20">
       <div className="pointer-events-none absolute inset-0 bg-glow" />
@@ -118,7 +119,9 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [confirmed, setConfirmed] = useState(initial?.confirmed ?? false);
-  useSpeakLine(line);
+  // Fresh chat: the greeting is the first host line (spoken until the first reply replaces it).
+  const greeting = useHostLine("chat_greeting");
+  useSpeakLine(line ?? (initial?.messages ? null : greeting));
 
   const card = pacing.questionsReady ? CARDS[cardIdx] : undefined;
 
