@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from pathlib import Path
 
 import modal
 
@@ -23,7 +24,7 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("libgl1", "libglib2.0-0")
     .pip_install("ultralytics>=8.3", "opencv-python-headless>=4.10")
-    .add_local_file("swingtrace-yolo11m.pt", "/models/swingtrace-yolo11m.pt")
+    .add_local_file(str(Path(__file__).parent / "research/models/swingtrace-yolo11m.pt"), "/models/swingtrace-yolo11m.pt")
 )
 
 MAX_BYTES = 8 * 1024 * 1024  # ~1.5 s at 640 px is well under this
