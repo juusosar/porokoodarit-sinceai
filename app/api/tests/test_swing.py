@@ -267,3 +267,16 @@ def test_dtl_validation():
     bad["club_head"]["x"].pop()
     with pytest.raises(ValueError):
         SwingAnalyzeRequest.model_validate(payload() | {"dtl": bad})
+
+
+def test_details_show_every_number_of_the_read():
+    d = run().details
+    assert d.samples == 960 and d.fps == 240 and d.duration_s == pytest.approx(4.0, abs=0.01)
+    assert d.height_from == "profile" and d.height_m == pytest.approx(1.8)
+    assert d.shaft_from == "default" and d.shaft_m == measure.DEFAULT_SHAFT_M
+    assert d.hand_travel_m > 0 and d.hand_speed_mps > 0
+    assert d.tempo_ratio == pytest.approx(run().backswing_s.value / run().downswing_s.value, rel=0.02)
+    assert run(height_cm=None).details.height_from == "default"
+    dd = measure.analyze(SwingAnalyzeRequest.model_validate(payload() | {"dtl": dtl_clip()})).details
+    assert dd.shaft_from == "down_the_line" and dd.dtl.shaft_px > dd.dtl.shoulder_px > 0
+    assert 0 < dd.dtl.head_found <= dd.dtl.still_samples

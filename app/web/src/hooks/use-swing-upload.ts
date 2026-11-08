@@ -4,7 +4,7 @@ import { inspectVideo } from '@/lib/video-metadata';
 import { analyzeVideo, PLAUSIBLE, plausibleTempo, type SwingAnalysis } from '@/lib/pose/analyze';
 import { getPoseLandmarker } from '@/lib/pose/landmarker';
 import { deleteSwing, readSwing, saveSwing, swingRecordSchema, type SwingRecord } from '@/lib/swing-store';
-import { analyzeSwingOnServer, swingPayload, swingServerEnabled, type SwingBody, type SwingServerResult } from '@/lib/swing-server';
+import { analyzeSwingOnServer, readFromServer, swingPayload, swingServerEnabled, type SwingBody, type SwingServerResult } from '@/lib/swing-server';
 import { clubHeadsAtAddress } from '@/lib/swing-dtl';
 import { lengthCm } from '@/lib/fit-request';
 import { fittingSchema } from '@/lib/fitting-schema';
@@ -58,6 +58,17 @@ function loadVideo(src: string): { video: HTMLVideoElement; loaded: Promise<void
 
 const usable = (c: Candidate | null): c is Candidate => !!c && plausibleTempo(c) && swingRecordSchema.shape.tempo.safeParse(c).success;
 export type Phase = 'selection' | 'preview' | 'analyzing' | 'saved';
+/** Step of the read in progress, shown while analysing. */
+export type Stage = 'face_on' | 'dtl_pose' | 'club_head' | 'server' | 'done';
+export type StagePlan = { dtl: boolean; server: boolean };
+
+/** Device fallback: takeaway / top / impact in real ms from the clip start. */
+function deviceEvents(a: SwingAnalysis, slowMo: number): Record<string, number> | undefined {
+  const t = a.tempo, t0 = a.frames[0]?.t ?? 0;
+  if (!t) return undefined;
+  const ms = (i: number) => Math.round(((a.frames[i]?.t ?? t0) - t0) * 1000 / slowMo);
+  return { Address: ms(t.takeawayFrame), Top: ms(t.topFrame), Impact: ms(t.impactFrame) };
+}
 
 /**
  * Swing video flow. The video is read on this device with MediaPipe pose (WASM, self-hosted); the video is never
@@ -77,6 +88,8 @@ export function useSwingUpload(enabled: boolean) {
   const [record, setRecord] = useState<SwingRecord | null>(null);
   const [analysis, setAnalysis] = useState<SwingAnalysis | null>(null);
   const [slowMo, setSlowMo] = useState(1);
+  const [stage, setStage] = useState<Stage>('face_on');
+  const [plan, setPlan] = useState<StagePlan>({ dtl: false, server: false });
   /** Optional second clip, down-the-line, for the golfer's shaft length (speed). Never uploaded either. */
   const [dtlFile, setDtlFile] = useState<File | null>(null);
   const localUrl = useRef<string | null>(null);
@@ -120,7 +133,7 @@ export function useSwingUpload(enabled: boolean) {
     dtl?.loaded.catch(() => undefined);
     ctrl.current?.abort();
     const c = new AbortController(); ctrl.current = c;
-    setBusy(true); setError(''); setProgress(0); setPhase('analyzing');
+    setBusy(true); setError(''); setProgress(0); setStage('face_on'); setPlan({ dtl: !!dtl, server: swingServerEnabled() }); setPhase('analyzing');
     try {
       await loaded;
       const share = dtl ? 0.6 : 1;
@@ -140,10 +153,12 @@ export function useSwingUpload(enabled: boolean) {
         if (dtl) {
           // Optional view: pose + club head at address on this device; a failure here only drops the shaft length.
           try {
+            setStage('dtl_pose');
             await withTimeout(dtl.loaded, DTL_LOAD_TIMEOUT_MS, c.signal);
             const d = await analyzeVideo(dtl.video, { slowMo, onProgress: p => setProgress(Math.round((0.6 + p * 0.3) * 100)), signal: c.signal });
             if (d.detectedShare < 0.6) extraNotes.push('dtl_body_not_visible');
             else {
+              setStage('club_head');
               const heads = await clubHeadsAtAddress(dtl.video, d.frames, d.tempo?.takeawayFrame ?? null, c.signal);
               body.dtl = { pose: swingPayload(d.frames, { sampleFps: d.fps, slowMo, width: dtl.video.videoWidth, height: dtl.video.videoHeight }).pose, club_head: { x: heads.x, y: heads.y } };
               dtlRead = true;
@@ -155,6 +170,7 @@ export function useSwingUpload(enabled: boolean) {
           }
           setProgress(95);
         }
+        setStage('server');
         try {
           try {
             server = await analyzeSwingOnServer(body, c.signal);
@@ -197,9 +213,13 @@ export function useSwingUpload(enabled: boolean) {
         dtl: dtlRead,
         notes: [...(server?.notes ?? []), ...extraNotes].slice(0, 12),
         ...(fallback ? { fallback } : {}),
+        ...(plausible ? {
+          events: useServer && server ? Object.fromEntries(Object.entries(server.events_ms).slice(0, 8).map(([k, v]) => [k.slice(0, 30), Math.round(v)])) : deviceEvents(result, slowMo),
+          read: (useServer && server ? readFromServer(server) : undefined) ?? { samples: result.frames.length, fps: Math.round(result.fps * slowMo * 10) / 10, durationS: Math.round(((result.frames.at(-1)?.t ?? 0) - (result.frames[0]?.t ?? 0)) / slowMo * 100) / 100 },
+        } : {}),
       };
       saveSwing(getFittingToken(), saved);
-      setRecord(saved); setProgress(100); setPhase('saved');
+      setRecord(saved); setProgress(100); setStage('done'); setPhase('saved');
       if (!saved.tempo) setError(`Couldn’t read your swing timing${result.error ? ` (${result.error})` : candidate ? ' (timing looked off)' : ''}. Try again with your whole body in frame, or continue: we’ll use your answers.`);
     } catch (e) {
       if (c.signal.aborted || (e as Error).name === 'AbortError') { setPhase('preview'); return; }
@@ -216,5 +236,5 @@ export function useSwingUpload(enabled: boolean) {
     if (localUrl.current) { URL.revokeObjectURL(localUrl.current); localUrl.current = null; }
     setUrl(null); setFile(null); setDtlFile(null); setTiming(null); setRecord(null); setAnalysis(null); setError(''); setPhase('selection');
   }
-  return { phase, file, url, timing, name, size, progress, error, busy, record, analysis, slowMo, setSlowMo, dtlFile, selectDtl, clearDtl: () => setDtlFile(null), select, submit, discard, restore, cancel: () => ctrl.current?.abort(), failPlayback: () => setError('Your browser cannot play this video. Choose another video or export an MP4 original.') };
+  return { phase, stage, plan, file, url, timing, name, size, progress, error, busy, record, analysis, slowMo, setSlowMo, dtlFile, selectDtl, clearDtl: () => setDtlFile(null), select, submit, discard, restore, cancel: () => ctrl.current?.abort(), failPlayback: () => setError('Your browser cannot play this video. Choose another video or export an MP4 original.') };
 }
