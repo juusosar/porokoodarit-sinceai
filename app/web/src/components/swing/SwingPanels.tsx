@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { drawSkeleton } from '@/lib/pose/overlay';
 import type { SwingAnalysis } from '@/lib/pose/analyze';
 import framing from '@/assets/swing-framing-face-on.jpg';
+import { CameraGuide } from './CameraGuide';
 import { HearItButton, hostParagraphs, useHostLine, useSpeakLine, type HostLineId } from '@/features/voice';
 
 /** Host banner: fixed line from app/shared/host_lines.json, read aloud in the host voice when it changes. */
@@ -40,7 +41,7 @@ export function VideoHUD({ url, guides, onError, analysis }: { url: string; guid
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [analysis]);
-  return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <svg viewBox="0 0 640 360" className="pointer-events-none absolute inset-0 h-full w-full pb-12" aria-hidden="true"><g stroke="currentColor" fill="none" className="text-foreground/20"><path d="M213 0v360M426 0v360M0 120h640M0 240h640" /></g><g stroke="currentColor" fill="none" className="text-primary"><rect x="170" y="25" width="300" height="290" rx="4" /><path d="M320 15v310M120 300h400" strokeDasharray="6 5" /><circle cx="395" cy="290" r="14" /><path d="M305 90a15 15 0 1 0 30 0a15 15 0 1 0 -30 0M320 105v90m0-65-35 45m35-45 35 45m-35 20-30 70m30-70 30 70" /></g></svg>}</div>;
+  return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <CameraGuide className="pb-12" />}</div>;
 }
 export function ProcessingStatus({ phase, progress }: { phase: string; progress: number }) {
   const done = phase === 'saved';
