@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 from ..schema import EvidenceSource, Observation
-from .schema import DtlClip, PoseSeries, SwingAnalysis, SwingAnalyzeRequest
+from .schema import DtlClip, DtlDetails, PoseSeries, SwingAnalysis, SwingAnalyzeRequest, SwingDetails
 from .upstream import swing_analytics as upstream_analytics
 from .upstream.phase_detector import KinematicPhaseDetector
 
@@ -87,34 +87,40 @@ def _wrists(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def _shaft_length(dtl: DtlClip, height_m: float, notes: list[str]) -> float | None:
+def _shaft_length(dtl: DtlClip, height_m: float, notes: list[str]) -> tuple[float | None, DtlDetails]:
     """main's DTL read: median wrist -> club-head distance over the still frames before address, scaled by the
     widest shoulder distance (upstream calculate_shaft_length_m: shoulders ~0.16 x height)."""
     p = dtl.pose
     W, H = p.width, p.height
     df = _frames(p)
+    address_ms = None
     try:
         ph = KinematicPhaseDetector().detect_phases_from_dataframe(_wrists(df), fps=p.fps)
         addr = int(ph["event_frames"]["Address"])
+        address_ms = float(ph["event_timestamps_ms"]["Address"])
     except Exception:
         addr = 0
     if addr < 5:  # no clear takeaway found (Address 0): use upstream's default address frame
         addr = 30
-    cutoff = min(addr, STATIC_FRAMES_MAX)
+    cutoff = min(addr, STATIC_FRAMES_MAX, len(p.t_ms))
+    info = DtlDetails(samples=len(p.t_ms), address_ms=address_ms, still_samples=cutoff, head_found=0)
     hx, hy = _col(dtl.club_head.x), _col(dtl.club_head.y)
     wx = (df["landmark_15_x"] + df["landmark_16_x"]).to_numpy() / 2
     wy = (df["landmark_15_y"] + df["landmark_16_y"]).to_numpy() / 2
     d = np.hypot((hx - wx) * W, (hy - wy) * H)[:cutoff]
+    info.head_found = int(np.isfinite(d).sum())
     d = d[np.isfinite(d) & (d > SHAFT_PX_SHARE[0] * H) & (d < SHAFT_PX_SHARE[1] * H)]
     if not len(d):
         notes.append("dtl_no_club_head")
-        return None
+        return None, info
+    info.shaft_px = round(float(np.median(d)), 1)
     ok = (df["landmark_11_vis"].fillna(0) > SHOULDER_VIS_MIN) & (df["landmark_12_vis"].fillna(0) > SHOULDER_VIS_MIN)
     sh = np.hypot((df["landmark_12_x"] - df["landmark_11_x"]) * W, (df["landmark_12_y"] - df["landmark_11_y"]) * H)
     sh = sh[ok & (sh > SHOULDER_PX_SHARE[0] * W) & (sh < SHOULDER_PX_SHARE[1] * W)]
     if sh.empty:
         notes.append("dtl_no_shoulders")
-        return None
+        return None, info
+    info.shoulder_px = round(float(sh.max()), 1)
     px = pd.DataFrame({"shaft_len_px": [float(np.median(d))], "shoulder_width_px": [float(sh.max())]})
     try:
         m = float(upstream_analytics.calculate_shaft_length_m(user_h=height_m, df=px))
@@ -122,8 +128,8 @@ def _shaft_length(dtl: DtlClip, height_m: float, notes: list[str]) -> float | No
         m = math.nan
     if not math.isfinite(m) or not (SHAFT_M[0] <= m <= SHAFT_M[1]):
         notes.append("dtl_shaft_implausible")
-        return None
-    return m
+        return None, info
+    return m, info
 
 
 def _obs(value: float, sd: float, source: EvidenceSource, method: str) -> Observation:
@@ -159,9 +165,22 @@ def analyze(req: SwingAnalyzeRequest) -> SwingAnalysis:
     if not req.height_cm:
         notes.append("height_default")
     shaft_m = DEFAULT_SHAFT_M
+    t = req.pose.t_ms
+    det = SwingDetails(
+        samples=len(t),
+        fps=fps,
+        duration_s=round((t[-1] - t[0]) / 1000, 3),
+        tempo_ratio=ph.get("tempo_ratio"),
+        height_m=height_m,
+        height_from="profile" if req.height_cm else "default",
+        shaft_m=shaft_m,
+        shaft_from="default",
+    )
+    res.details = det
     if req.dtl is not None:
-        measured = _shaft_length(req.dtl, height_m, notes)
+        measured, det.dtl = _shaft_length(req.dtl, height_m, notes)
         if measured is not None:
+            det.shaft_m, det.shaft_from = round(measured, 3), "down_the_line"
             shaft_m = measured
             res.shaft_length_m = _obs(measured, SHAFT_SD_M, EvidenceSource.measured, "video_dtl_shaft")
 
@@ -185,6 +204,9 @@ def analyze(req: SwingAnalyzeRequest) -> SwingAnalysis:
         sw[f"landmark_{k}_x"] = sw[f"landmark_{k}_x"] * (aspect / UPSTREAM_ASPECT)
     try:
         speed = float(upstream_analytics.calculate_club_speed(sw, user_h=height_m, shaft_m=shaft_m))
+        travel = float(upstream_analytics.get_top_bottom_d(sw, user_h=height_m))  # same number the speed model uses
+        if math.isfinite(travel):
+            det.hand_travel_m, det.hand_speed_mps = round(travel, 3), round(travel / down, 2)
     except Exception:
         speed = math.nan
     if not math.isfinite(speed) or not (SPEED_MPH[0] <= speed <= SPEED_MPH[1]):
