@@ -5,4 +5,4 @@ export { useSpeakLine } from "./hooks";
 export { HearItButton } from "./HearItButton";
 export { VoiceToggle } from "./VoiceToggle";
 export { lineOf } from "./line";
-export { hostParagraphs, useHostLine, type HostLineId } from "./host-lines";
+export { hostParagraphs, hostText, preloadHostLines, useHostLine, type HostLineId } from "./host-lines";
