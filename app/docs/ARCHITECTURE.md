@@ -9,7 +9,7 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 ## Components
 | Part | Tech | Where it runs | Notes |
 |---|---|---|---|
-| `app/web` | Lovable UI ported to a Vite SPA: React 19 + TanStack Router + Tailwind 4 + shadcn | Device browser, hosted on Vercel | Mobile first. Chat profiling (`/v1/chat`), swing keypoints (`/v1/swing/analyze`), engine fit (`/v1/fit`), host lines (`/v1/explain`). State in localStorage. `app/web_legacy` = previous MVP UI, reference only. |
+| `app/web` | Lovable UI ported to a Vite SPA: React 19 + TanStack Router + Tailwind 4 + shadcn | Device browser, hosted on Vercel | Mobile first. Chat profiling (`/v1/chat`), swing keypoints (`/v1/swing/analyze`), engine fit (`/v1/fit`), host lines (`/v1/explain`). State in localStorage. |
 | Pose | MediaPipe Tasks JS, pose landmarker lite | Device browser | 9 keypoints per frame; only these numbers leave the device, never the video. Device tempo = fallback when the API can't read the swing. |
 | Swing analysis | Team research `phase_detector.py` + `swing_analytics.py` in `api/takomo_api/swing/upstream/` | API `POST /v1/swing/analyze` | Tempo, video club speed, shaft length (optional down-the-line clip). Adapters in `swing/measure.py`. Not stored or logged. |
 | `app/api` | FastAPI + Pydantic v2, Python 3.12 | Cloud Run, europe-north1 | Engine, fusion, LLM + TTS proxy, settings. Keys server-side only. |

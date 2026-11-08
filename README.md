@@ -62,7 +62,7 @@ Request flow:
 | Web UI | TanStack Router, TanStack Query | File routes, API calls |
 | Web UI | Tailwind CSS 4, shadcn/ui (Radix), lucide-react, sonner | Design system, toasts |
 | Web UI | react-hook-form, Zod | Forms, validation |
-| Web UI | Lovable | Original UI design (export kept in `frontend/`) |
+| Web UI | Lovable | Original UI design (ported into `app/web`) |
 | On-device vision | MediaPipe Tasks Vision (pose landmarker lite, WASM, self-hosted) | Pose keypoints from the swing video |
 | On-device vision | mediabunny (WebCodecs) | Fast in-order frame decode |
 | On-device vision | onnxruntime-web (WebGPU, WASM fallback) + SwingTrace YOLO11m, ONNX FP16 | Club head on the down-the-line clip; club tracking bench |
@@ -250,8 +250,6 @@ app/
   vision/       ONNX export, swing research pipeline + ball-line photos (research/), unused Modal stub
   deploy/       container build + deploy scripts
   docs/         architecture, recommendation engine, data & privacy, eval
-  web_legacy/   previous MVP UI, reference only
-frontend/       original Lovable export, reference only
 ```
 
 ## Limits and next steps
