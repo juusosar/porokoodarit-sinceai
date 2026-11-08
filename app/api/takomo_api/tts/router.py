@@ -33,7 +33,7 @@ def audio_token(text: str) -> str | None:
 
 @cache
 def host_lines() -> dict[str, str]:
-    """Fixed host lines: chat greeting + banners (app/shared/host_lines.json), as the voice reads them: paragraphs joined."""
+    """Fixed host lines: chat greeting + banners (app/shared/host_lines.json), paragraphs joined as spoken."""
     raw = json.loads((Path(__file__).resolve().parents[1] / "data" / "host_lines.json").read_text())["lines"]
     return {k: " ".join(v) for k, v in raw.items()}
 
