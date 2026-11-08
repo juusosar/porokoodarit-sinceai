@@ -31,6 +31,33 @@ export const swingRecordSchema = z.object({
   shaftM: z.number().min(0.5).max(1.3).nullable().optional(),
   /** Down-the-line clip given (and read on the device). */
   dtl: z.boolean().optional(),
+  /** Swing events found, real ms from the clip start (Address, Top, Impact, ...). */
+  events: z.record(z.string().max(30), z.number().min(0).max(60_000)).optional(),
+  /** Every intermediate number of the read, shown on the result and summary screens. Numbers only. */
+  read: z
+    .object({
+      samples: z.number().int().nonnegative(),
+      fps: z.number().positive().max(1000),
+      durationS: z.number().nonnegative().max(60),
+      heightM: z.number().positive().max(3).optional(),
+      heightFrom: z.enum(["profile", "default"]).optional(),
+      shaftUsedM: z.number().positive().max(2).optional(),
+      shaftFrom: z.enum(["down_the_line", "default"]).optional(),
+      handTravelM: z.number().nonnegative().max(5).nullable().optional(),
+      handSpeedMps: z.number().nonnegative().max(50).nullable().optional(),
+      dtl: z
+        .object({
+          samples: z.number().int().nonnegative(),
+          addressMs: z.number().nullable(),
+          stillSamples: z.number().int().nonnegative(),
+          headFound: z.number().int().nonnegative(),
+          shaftPx: z.number().nullable(),
+          shoulderPx: z.number().nullable(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .optional(),
   analyzedAt: z.string().datetime(),
 });
 export type SwingRecord = z.infer<typeof swingRecordSchema>;

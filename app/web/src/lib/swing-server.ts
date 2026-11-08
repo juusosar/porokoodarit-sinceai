@@ -5,6 +5,7 @@ import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import type { Observation } from "@/types/fit-state";
 import { env } from "@/lib/env";
 import type { PoseFrame } from "@/lib/pose/analyze";
+import type { SwingRecord } from "@/lib/swing-store";
 
 /** Head (body height), shoulders, wrists, ankles: what app/api/takomo_api/swing reads. */
 export const SENT_LANDMARKS = [0, 1, 2, 11, 12, 15, 16, 27, 28] as const;
@@ -16,6 +17,12 @@ export type SwingServerResult = {
   video_speed_7i_mph: Observation | null;
   shaft_length_m: Observation | null;
   events_ms: Record<string, number>;
+  details?: {
+    samples: number; fps: number; duration_s: number; tempo_ratio: number | null;
+    height_m: number; height_from: "profile" | "default"; shaft_m: number; shaft_from: "down_the_line" | "default";
+    hand_travel_m: number | null; hand_speed_mps: number | null;
+    dtl: { samples: number; address_ms: number | null; still_samples: number; head_found: number; shaft_px: number | null; shoulder_px: number | null } | null;
+  } | null;
   algorithm: string;
   notes: string[];
 };
@@ -85,6 +92,17 @@ export function readingSource(r: { source?: "server" | "device"; algorithm?: str
   if (r.source === "server") return { title: `Read by our server from body keypoints (${r.algorithm ?? "main"})`, detail: notes };
   const why = r.fallback === "off" ? "server reading is switched off" : r.fallback === "unreachable" ? "server not reachable" : r.fallback === "no_read" ? "server couldn’t read this swing" : null;
   return { title: `Read on this device${why ? ` (${why})` : ""}`, detail: notes };
+}
+
+/** API details -> the stored, camelCase read (numbers only). */
+export function readFromServer(r: SwingServerResult): NonNullable<SwingRecord["read"]> | undefined {
+  const d = r.details;
+  if (!d) return undefined;
+  return {
+    samples: d.samples, fps: d.fps, durationS: d.duration_s, heightM: d.height_m, heightFrom: d.height_from,
+    shaftUsedM: d.shaft_m, shaftFrom: d.shaft_from, handTravelM: d.hand_travel_m, handSpeedMps: d.hand_speed_mps,
+    dtl: d.dtl ? { samples: d.dtl.samples, addressMs: d.dtl.address_ms, stillSamples: d.dtl.still_samples, headFound: d.dtl.head_found, shaftPx: d.dtl.shaft_px, shoulderPx: d.dtl.shoulder_px } : null,
+  };
 }
 
 export async function analyzeSwingOnServer(body: SwingBody, signal?: AbortSignal): Promise<SwingServerResult> {

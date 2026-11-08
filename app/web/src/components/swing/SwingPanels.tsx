@@ -6,6 +6,7 @@ import type { SwingAnalysis } from '@/lib/pose/analyze';
 import framing from '@/assets/swing-framing-face-on.jpg';
 import { CameraGuide } from './CameraGuide';
 import { swingServerEnabled } from '@/lib/swing-server';
+import type { Stage, StagePlan } from '@/hooks/use-swing-upload';
 import { HearItButton, hostParagraphs, useHostLine, useSpeakLine, type HostLineId } from '@/features/voice';
 import { HostMark } from '@/components/HostMark';
 
@@ -45,9 +46,18 @@ export function VideoHUD({ url, guides, onError, analysis }: { url: string; guid
   }, [analysis]);
   return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <CameraGuide video={videoRef} />}</div>;
 }
-export function ProcessingStatus({ phase, progress }: { phase: string; progress: number }) {
+const STAGE_ROWS: { stage: Stage; title: string; when?: keyof StagePlan }[] = [
+  { stage: 'face_on', title: 'Reading body pose on this device (face-on)' },
+  { stage: 'dtl_pose', title: 'Reading body pose, down-the-line view', when: 'dtl' },
+  { stage: 'club_head', title: 'Finding the club head at address', when: 'dtl' },
+  { stage: 'server', title: 'Server: swing phases, timing, hand travel and speed from keypoints', when: 'server' },
+  { stage: 'done', title: 'Saving timing and speed for your fit' },
+];
+export function ProcessingStatus({ phase, progress, stage = 'face_on', plan = { dtl: false, server: false } }: { phase: string; progress: number; stage?: Stage; plan?: StagePlan }) {
   const done = phase === 'saved';
-  const rows = [{ title: 'Reading your swing on this device', done, active: phase === 'analyzing' }, { title: 'Finding takeaway, top and impact', done, active: false }, { title: 'Timing backswing and downswing', done, active: false }];
+  const shown = STAGE_ROWS.filter(r => !r.when || plan[r.when]);
+  const at = done ? shown.length : Math.max(0, shown.findIndex(r => r.stage === stage));
+  const rows = shown.map((r, i) => ({ title: r.title, done: i < at || done, active: !done && i === at && phase === 'analyzing' }));
   return <ol className="divide-y divide-border">{rows.map((row, i) => <li key={row.title} className="flex items-center gap-3 py-4 text-sm">{row.done ? <CheckCircle2 className="size-5 text-primary" /> : row.active ? <Loader2 className="size-5 animate-spin text-primary motion-reduce:animate-none" /> : <Circle className="size-5 text-muted-foreground" />}<span className={row.active || row.done ? 'text-foreground' : 'text-muted-foreground'}>{row.title}</span>{i === 0 && <span className="ml-auto tabular-nums text-primary">{done ? '100%' : `${progress}%`}</span>}</li>)}</ol>;
 }
 export function PrivacyNotice() { return <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3" />{swingServerEnabled() ? 'Your video stays on this device. Only body keypoint positions (numbers, no images) are sent to read timing and speed.' : 'Your video stays on this device. Only timing numbers are used.'}</p>; }
