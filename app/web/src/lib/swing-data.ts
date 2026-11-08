@@ -68,7 +68,17 @@ export function swingDataSteps(r: SwingRecord | null): SwingDataStep[] {
   return steps;
 }
 
-/** One line for the profile summary: the values the engine got from the video. */
+/** Profile summary rows the video replaces: tempo (timing only), speed (estimate) when not answered. */
+export function swingProfileValue(key: string, answer: { value: string; status: string } | undefined, r: SwingRecord | null): string | null {
+  if (!r?.tempo) return null;
+  const t = r.tempo;
+  if (key === "tempo") return `backswing ${s2(t.backswingS)} · downswing ${s2(t.downswingS)}${t.ratio ? ` · ${t.ratio.toFixed(1)}:1` : ""} · measured from video`;
+  if (key === "speed" && r.speed && (!answer || answer.status !== "sure"))
+    return `about ${Math.round(r.speed.value)} mph ± ${Math.round(r.speed.sd)} · estimated from swing video`;
+  return null;
+}
+
+/** One line for the source data: the values the engine got from the video. */
 export function swingSummaryLine(r: SwingRecord | null): string | null {
   if (!r?.tempo) return null;
   const t = r.tempo;
