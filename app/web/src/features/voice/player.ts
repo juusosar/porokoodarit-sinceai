@@ -43,11 +43,6 @@ export function stop(): void {
     el.removeAttribute("src");
     el.load(); // actually abort the download (removing src alone does not)
   }
-  try {
-    window.speechSynthesis?.cancel();
-  } catch {
-    /* no browser TTS */
-  }
 }
 
 export function speakUrl(line: Line): string | null {
@@ -56,23 +51,13 @@ export function speakUrl(line: Line): string | null {
   return `${API_URL()}/v1/speak?${q}`;
 }
 
-function browserSpeak(text: string): void {
-  try {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    window.speechSynthesis.speak(u);
-  } catch {
-    /* no browser TTS: captions carry the line */
-  }
-}
-
 // One audio element for the whole app, "unlocked" by the first tap/key. Safari and iOS only let an element
 // play without a gesture once it has played inside one; host lines arrive async (after the API answers),
 // so a fresh `new Audio()` per line was blocked there and the line never even requested /v1/speak.
 const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 let el: HTMLAudioElement | null = null;
 let unlocked = false;
-let cur: { line: Line; started: boolean; fellBack: boolean } | null = null;
+let cur: { line: Line; started: boolean } | null = null;
 
 function element(): HTMLAudioElement {
   if (el) return el;
@@ -81,23 +66,17 @@ function element(): HTMLAudioElement {
   a.addEventListener("playing", () => {
     if (cur) cur.started = true;
   });
-  a.addEventListener("error", () => fallback());
+  // Server voice failed (budget, provider down, network): no fallback voice, the caption carries the line.
+  a.addEventListener("error", () => {
+    if (cur && !cur.started) console.info("[voice] server audio failed; staying silent");
+  });
   el = a;
   return a;
 }
 
-function fallback(): void {
-  // Server voice failed before playing (budget, provider down, network): same line in the browser voice.
-  // Once audio has started, a cut-off clip just ends; repeating the line would play it twice.
-  const c = cur;
-  if (!c || c.started || c.fellBack) return;
-  c.fellBack = true;
-  browserSpeak(c.line.text);
-}
-
 /**
- * Runs inside user gestures until one succeeds: plays inside the gesture so the shared element (and the
- * browser voice) count as user-started. A line blocked earlier (e.g. on page load) plays right here;
+ * Runs inside user gestures until one succeeds: plays inside the gesture so the shared element counts
+ * as user-started. A line blocked earlier (e.g. on page load) plays right here;
  * otherwise a short silent clip primes the element.
  */
 export function unlock(): void {
@@ -116,11 +95,6 @@ export function unlock(): void {
     },
     () => undefined, // not a gesture this browser accepts (or aborted by a new line): retry on the next one
   );
-  try {
-    window.speechSynthesis?.speak(new SpeechSynthesisUtterance(""));
-  } catch {
-    /* no browser TTS */
-  }
 }
 
 if (typeof window !== "undefined") {
@@ -131,22 +105,18 @@ if (typeof window !== "undefined") {
 }
 
 /**
- * Speak a host line. `force` = explicit "Hear it" tap: ignores mute and may use the browser voice.
- * Automatic lines only use the server voice (browser voice only as fallback when it fails), so with
- * server voice off the app stays silent unless the user asks.
+ * Speak a host line with the server voice. `force` = explicit "Hear it" tap: ignores mute.
+ * Lines without a server token (API voice off) and failed audio stay silent: no browser speech.
  */
 export function speak(line: Line, force = false): void {
   const mode = voiceMode();
   if (mode === "off" || !line.text) return;
   if (muted && !force) return;
   stop();
-  const url = mode === "on" ? speakUrl(line) : null;
-  if (!url) {
-    if (force || mode === "browser") browserSpeak(line.text);
-    return;
-  }
+  const url = speakUrl(line);
+  if (!url) return;
   const a = element();
-  const me = { line, started: false, fellBack: false };
+  const me = { line, started: false };
   cur = me;
   a.src = url;
   a.play().catch((e: unknown) => {
@@ -156,6 +126,6 @@ export function speak(line: Line, force = false): void {
       console.info("[voice] autoplay blocked by the browser; tap the page or use Hear it");
       return;
     }
-    fallback();
+    console.info("[voice] server audio failed; staying silent");
   });
 }
