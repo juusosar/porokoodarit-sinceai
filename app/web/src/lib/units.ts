@@ -60,28 +60,33 @@ export function fmtCm(cm: number, u: Units): string {
   return `${s}${trim(a / IN_CM, a < IN_CM ? 2 : 1)} in`;
 }
 
-/** m -> display: metres or feet. */
-export function fmtM(m: number, u: Units, d = 2): string {
-  return u === "metric" ? `${trim(m, d)} m` : `${trim(m * 3.2808, 1)} ft`;
-}
+const N = String.raw`\d+(?:\.\d+)?`;
+const NUM = String.raw`([+\-−]?)(${N})`;
+// Optional range start ("170–180 cm", "0.5-1 in") so both ends convert.
+const FROM = String.raw`(?:(${N})\s?[–-]\s?)?`;
+// No number glued to a word, decimal or fraction ("7-iron" is fine: its unit never follows).
+const EDGE = String.raw`(?<![\w./])`;
+// "in" counts as inches only at the end of a phrase or before a length word: "1 in 3", "150 in calm" stay as words.
+const IN_UNIT = String.raw`(?:inch(?:es)?\b|″|in\b(?=\s*(?:$|[.,;:!?()\]·/–-]|(?:shorter|longer|over|under|from|than|and|or|tall|long|length|of)\b)))`;
+const FT_IN = /(?<![\w./])(\d)\s?(?:'|’|ft\b)\s?(\d{1,2}(?:\.\d+)?)\s?(?:''|"|″|”|in\b)?/g;
+const INCH = new RegExp(String.raw`${EDGE}${FROM}${NUM}\s?${IN_UNIT}`, "g");
+const CM = new RegExp(String.raw`${EDGE}${FROM}${NUM}\s?cm\b`, "g");
+// Only body/club-sized metres (< 3 m); carry distances in metres are distances, not lengths.
+const METRE = new RegExp(String.raw`${EDGE}${NUM}\s?m\b(?![/\w])`, "g");
 
-const NUM = String.raw`([+\-−]?)(\d+(?:\.\d+)?)`;
-// "in" as a unit, not the word: not followed by an article or noun that makes it a preposition.
-const IN_WORD = String.raw`in(?:ch(?:es)?)?\b(?!\s+(?:a|an|the|your|my|our|this|that|golf|total|stock)\b)`;
-const FT_IN = /(?<![\w.])(\d)\s?(?:'|’|ft\b)\s?(?:(\d{1,2}(?:\.\d+)?)\s?(?:"|″|”|in\b)?)?(?![a-z])/g;
-const INCH = new RegExp(String.raw`(?<![\w."“])${NUM}\s?(?:${IN_WORD}|″|”|"(?!\w))`, "g");
-const CM = new RegExp(String.raw`(?<![\w.])${NUM}\s?cm\b`, "g");
-const METRE = new RegExp(String.raw`(?<![\w.])${NUM}\s?m\b(?![/\w])`, "g");
+// Range start without its unit when it's the same as the end's: "91–94 cm", "5'7"–5'11"".
+const range = (from: string | undefined, conv: (n: number) => string) => (from ? `${conv(Number(from)).replace(/ (cm|in)$/, "")}–` : "");
 
 /** Rewrite lengths in free text (engine labels, reasons, LLM replies, answers) into the chosen unit. */
 export function convertLengths(text: string, u: Units): string {
   if (!text) return text;
   if (u === "metric") {
     return text
-      .replace(FT_IN, (_m, ft: string, inch?: string) => fmtCm((Number(ft) * 12 + Number(inch ?? 0)) * IN_CM, u))
-      .replace(INCH, (_m, s: string, n: string) => sign(s) + fmtCm(Number(n) * IN_CM, u));
+      .replace(FT_IN, (_m, ft: string, inch: string) => fmtCm((Number(ft) * 12 + Number(inch)) * IN_CM, u))
+      .replace(INCH, (_m, from: string | undefined, s: string, n: string) =>
+        range(from, (v) => fmtCm(v * IN_CM, u)) + sign(s) + fmtCm(Number(n) * IN_CM, u));
   }
   return text
-    .replace(CM, (_m, s: string, n: string) => sign(s) + fmtCm(Number(n), u))
-    .replace(METRE, (_m, s: string, n: string) => sign(s) + fmtM(Number(n), u));
+    .replace(CM, (_m, from: string | undefined, s: string, n: string) => range(from, (v) => fmtCm(v, u)) + sign(s) + fmtCm(Number(n), u))
+    .replace(METRE, (m, s: string, n: string) => (Number(n) < 3 ? `${sign(s)}${trim((Number(n) * 100) / IN_CM, 1)} in` : m));
 }
