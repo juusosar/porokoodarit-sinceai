@@ -89,7 +89,7 @@ export const NOTE_TEXT: Record<string, string> = {
 /** One line for the result: who read the swing and what is missing. */
 export function readingSource(r: { source?: "server" | "device"; algorithm?: string; fallback?: "off" | "unreachable" | "no_read"; notes?: string[] }): { title: string; detail: string[] } {
   const notes = (r.notes ?? []).map((n) => NOTE_TEXT[n]).filter(Boolean);
-  if (r.source === "server") return { title: `Read by our server from body keypoints (${r.algorithm ?? "main"})`, detail: notes };
+  if (r.source === "server") return { title: "Read by our server from body keypoints", detail: notes };
   const why = r.fallback === "off" ? "server reading is switched off" : r.fallback === "unreachable" ? "server not reachable" : r.fallback === "no_read" ? "server couldn’t read this swing" : null;
   return { title: `Read on this device${why ? ` (${why})` : ""}`, detail: notes };
 }
