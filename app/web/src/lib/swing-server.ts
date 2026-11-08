@@ -14,6 +14,7 @@ export type SwingServerResult = {
   backswing_s: Observation | null;
   downswing_s: Observation | null;
   video_speed_7i_mph: Observation | null;
+  shaft_length_m: Observation | null;
   events_ms: Record<string, number>;
   algorithm: string;
   notes: string[];
@@ -56,7 +57,35 @@ export function swingPayload(
   };
 }
 
-export async function analyzeSwingOnServer(body: ReturnType<typeof swingPayload>, signal?: AbortSignal): Promise<SwingServerResult> {
+export type SwingBody = ReturnType<typeof swingPayload> & {
+  dtl?: { pose: ReturnType<typeof swingPayload>["pose"]; club_head: { x: (number | null)[]; y: (number | null)[] } };
+};
+
+/** Golfer-facing words for the API's notes (why a value is missing or less certain). */
+export const NOTE_TEXT: Record<string, string> = {
+  body_not_visible: "body not visible in most frames",
+  phases_not_found: "swing not found in the clip",
+  phases_out_of_order: "swing phases unclear",
+  timing_implausible: "timing looked off",
+  speed_needs_slow_motion: "club speed needs a slow-motion clip",
+  speed_implausible: "club speed read looked off",
+  height_default: "no height given, so speed is less certain",
+  dtl_no_club_head: "club head not found in the down-the-line clip",
+  dtl_no_shoulders: "shoulders not clear in the down-the-line clip",
+  dtl_shaft_implausible: "club length from the down-the-line clip looked off",
+  dtl_body_not_visible: "body not visible in the down-the-line clip",
+  dtl_unreadable: "down-the-line clip could not be read on this device",
+};
+
+/** One line for the result: who read the swing and what is missing. */
+export function readingSource(r: { source?: "server" | "device"; algorithm?: string; fallback?: "off" | "unreachable" | "no_read"; notes?: string[] }): { title: string; detail: string[] } {
+  const notes = (r.notes ?? []).map((n) => NOTE_TEXT[n]).filter(Boolean);
+  if (r.source === "server") return { title: `Read by our server from body keypoints (${r.algorithm ?? "main"})`, detail: notes };
+  const why = r.fallback === "off" ? "server reading is switched off" : r.fallback === "unreachable" ? "server not reachable" : r.fallback === "no_read" ? "server couldn’t read this swing" : null;
+  return { title: `Read on this device${why ? ` (${why})` : ""}`, detail: notes };
+}
+
+export async function analyzeSwingOnServer(body: SwingBody, signal?: AbortSignal): Promise<SwingServerResult> {
   const url = `${env("VITE_API_URL", "http://localhost:8080")}/v1/swing/analyze`;
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   const r = await fetch(url, {
