@@ -1,6 +1,6 @@
 # Recommendation engine: how inputs become a Takomo iron spec
 
-Status: built on branch `claude/project-thread-sbbmzg`, **not merged**. For review by the team.
+Status: merged to `dev` 7 Nov 2026 (PR #63, POR-40).
 Plan it implements: https://claude.ai/artifact/PMyyUjJe7h8S9S6aLb5DBQ (7 Nov 2026).
 
 ## 1. Principle
