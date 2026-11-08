@@ -1,17 +1,17 @@
 # Data & privacy
 
-Where each piece of data is processed and stored, and for how long. Reflects the code on `dev` (7 Nov 2026).
-Hosting: API on Google Cloud Run, europe-north1 (Finland). Gemini via Vertex AI, location `global`. Web on Vercel.
+Where each piece of data is processed and stored, and for how long. Reflects the code on `dev` (8 Nov 2026).
+Hosting ("device" = the golfer's phone or computer): API on Google Cloud Run, europe-north1 (Finland). Gemini via Vertex AI, location `global`. Web on Vercel.
 
 | Data | Processed on | Sent to | Stored | Retention |
 |---|---|---|---|---|
-| Card answers (hand, sex, score, carry, loft, flight, height, wrist-to-floor, glove) | Phone | API (Cloud Run), per request; also Gemini, as the card summary turn and profile labels in the chat | This browser's localStorage | 30 days, or until "Delete my data" |
-| Chat messages the golfer types + profile labels | Phone | API, then Gemini (Google) to write the host's reply (last 6 turns) | localStorage (chat history); not stored by the API | 30 days in browser; Gemini per Google's API terms |
-| Swing video | Phone (MediaPipe pose, self-hosted WASM) | Nowhere | Not stored | Gone when the page closes |
-| Ball-line test face photo | Phone (shown from a local object URL; the golfer taps 4 points) | Nowhere | Not stored | Gone when the shot is saved or the page closes |
-| Swing pose keypoints (9 body points per frame as numbers: head, shoulders, wrists, ankles; no images) + optional down-the-line clip's keypoints and club-head box centres at address | Phone | API `/v1/swing/analyze`, once per video (off with `VITE_SWING_SERVER=off`) | Not stored or logged by the API | Gone after the response |
-| Swing timing (backswing / downswing seconds) + estimated club speed | API (main's algorithm), phone as fallback | API, per request | localStorage | 30 days, or until "Delete my data" |
-| Extra data (launch monitor speed, carry, launch, spin, landing angle, strike, ball-line tilt angles) | Phone | API: speed, carry, launch, spin, landing angle and the mean ball-line tilt (strike stays on the phone) | localStorage | 30 days, or until "Delete my data" |
+| Card answers (hand, sex, score, carry, loft, flight, height, wrist-to-floor, glove) | Device | API (Cloud Run), per request; also Gemini, as the card summary turn and profile labels in the chat | This browser's localStorage | 30 days, or until "Delete my data" |
+| Chat messages the golfer types + profile labels | Device | API, then Gemini (Google) to write the host's reply (last 6 turns) | localStorage (chat history); not stored by the API | 30 days in browser; Gemini per Google's API terms |
+| Swing video | Device (MediaPipe pose, self-hosted WASM) | Nowhere | Not stored | Gone when the page closes |
+| Ball-line test face photo | Device (shown from a local object URL; the golfer taps 4 points) | Nowhere | Not stored | Gone when the shot is saved or the page closes |
+| Swing pose keypoints (9 body points per frame as numbers: head, shoulders, wrists, ankles; no images) + optional down-the-line clip's keypoints and club-head box centres at address | Device | API `/v1/swing/analyze`, once per video (off with `VITE_SWING_SERVER=off`) | Not stored or logged by the API | Gone after the response |
+| Swing timing (backswing / downswing seconds) + estimated club speed | API (main's algorithm), device as fallback | API, per request | localStorage | 30 days, or until "Delete my data" |
+| Extra data (launch monitor speed, carry, launch, spin, landing angle, strike, ball-line tilt angles) | Device | API: speed, carry, launch, spin, landing angle and the mean ball-line tilt (strike stays on the device) | localStorage | 30 days, or until "Delete my data" |
 | Fit state (engine labels, reason codes and their params, e.g. carry said/used, own loft; rebuilt server-side from inputs) | API | Gemini, to word the explanation | Not stored by the API | Gemini per Google's API terms |
 | Host lines (chat replies + explanation lines the API signed) | API | ElevenLabs, only when voice is on | Audio in API memory cache (not on disk) | Until instance restart / cache eviction; ElevenLabs per its API terms |
 | Request logs (latency, token counts, error codes; an error may quote a short piece of model output) | API | Google Cloud Logging | Cloud Logging | Project log retention |

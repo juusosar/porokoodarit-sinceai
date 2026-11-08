@@ -1,4 +1,4 @@
-# Takomo Fitter: architecture (v1, 7 Nov 2026)
+# Takomo Fitter: architecture (v1, updated 8 Nov 2026)
 
 Decision record for POR-7. Hackathon build; US market first.
 
@@ -9,19 +9,20 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 ## Components
 | Part | Tech | Where it runs | Notes |
 |---|---|---|---|
-| `app/web` | Lovable UI ported to a Vite SPA: React 19 + TanStack Router + Tailwind 4 + shadcn | Phone browser, hosted on Vercel | Mobile first. Chat profiling (`/v1/chat`), engine fit (`/v1/fit`), host lines (`/v1/explain`). State in localStorage; swing tempo read on device (MediaPipe). `app/web_legacy` = previous MVP UI, reference only. |
-| Pose | MediaPipe Tasks JS, pose landmarker lite | Phone browser | Skeleton overlay + swing-window cut. Landmarks only leave the phone. |
-| `app/api` | FastAPI + Pydantic v2, Python 3.12 | Cloud Run, min 1 instance (US) | Engine, fusion, LLM + TTS proxy, settings. Keys server-side only. |
-| Club tracking | SwingTrace YOLO11m, ONNX FP16, onnxruntime-web WebGPU (`web/src/lib/club`) | Phone browser | Decided 7 Nov: on device, video never uploaded. Benchmark page `/bench/club`. |
-| `app/vision` | ONNX export script; Modal GPU stub (unused fallback) | Modal GPU (T4/L4) | Not deployed. |
+| `app/web` | Lovable UI ported to a Vite SPA: React 19 + TanStack Router + Tailwind 4 + shadcn | Device browser, hosted on Vercel | Mobile first. Chat profiling (`/v1/chat`), swing keypoints (`/v1/swing/analyze`), engine fit (`/v1/fit`), host lines (`/v1/explain`). State in localStorage. `app/web_legacy` = previous MVP UI, reference only. |
+| Pose | MediaPipe Tasks JS, pose landmarker lite | Device browser | 9 keypoints per frame; only these numbers leave the device, never the video. Device tempo = fallback when the API can't read the swing. |
+| Swing analysis | main's `phase_detector.py` + `swing_analytics.py`, vendored in `api/takomo_api/swing/upstream/` (sync: `vision/sync-main.sh`) | API `POST /v1/swing/analyze` | Tempo, video club speed, shaft length (optional down-the-line clip). Adapters in `swing/measure.py`. Not stored or logged. |
+| `app/api` | FastAPI + Pydantic v2, Python 3.12 | Cloud Run, europe-north1 | Engine, fusion, LLM + TTS proxy, settings. Keys server-side only. |
+| Club detector | SwingTrace YOLO11m, ONNX FP16, onnxruntime-web WebGPU (`web/src/lib/club`) | Device browser | Club head on the down-the-line clip's address frames. Whole-swing tracking only on bench page `/bench/club` (deprioritised 7 Nov). |
+| `app/vision` | ONNX export, swing research pipeline (`research/`), `sync-main.sh`; Modal GPU stub | Dev machine | Modal stub unused, not deployed. |
 | `app/shared` | JSON Schema (from Pydantic) + reason codes | Both | `fit_state.schema.json` → TS types via `npm run gen:types`. CI checks drift. |
 | LLM | Own thin `LLMProvider` adapter; Gemini first | Called from API | Roles → models in config. Demo panel switch only when `TAKOMO_DEMO_MODE=true` + `X-Demo-Token`, model allowlist. `/v1/explain` takes inputs (FitRequest), re-runs the engine server-side, never a client state. JSON output validated (Pydantic) + spec-match guard + template fallback; rate limit + body cap per instance. |
-| Voice (TTS) | `api/takomo_api/tts/` + `web/src/features/voice/`, ElevenLabs Flash v2.5 | Called from API | Off by default (`TAKOMO_TTS_PROVIDER=none`). On: `/v1/explain` adds an HMAC `audio_token` to each spoken_line; fixed host banner lines (`shared/host_lines.json`, swing + extra-data screens) get tokens from `GET /v1/voice/lines`; `GET /v1/speak` streams mp3 only for signed lines (no open TTS proxy), memory LRU cache, rate limit + daily char cap. Web: `VITE_VOICE=on|browser|off`, mute toggle (remembered), captions always on, browser speechSynthesis fallback. |
+| Voice (TTS) | `api/takomo_api/tts/` + `web/src/features/voice/`, ElevenLabs Flash v2.5 | Called from API | Live in production; off by default in code (`TAKOMO_TTS_PROVIDER=none`). On: `/v1/explain` adds an HMAC `audio_token` to each spoken_line; fixed host banner lines (`shared/host_lines.json`, swing + extra-data screens) get tokens from `GET /v1/voice/lines`; `GET /v1/speak` streams mp3 only for signed lines (no open TTS proxy), memory LRU cache, rate limit + daily char cap. Web: `VITE_VOICE=on|browser|off`, mute toggle (remembered), captions always on, browser speechSynthesis fallback. |
 | Jev (TypeSafe) | Optional adapter | Called from API | Flagged. Normaliser / guardrail / close-call 2nd opinion. Never decides. |
-| Voice | `TTSProvider` (ElevenLabs Flash) | Called from API | Fixed lines pre-generated, dynamic lines after guardrail. Captions always on. |
-| Storage | Browser state; opt-in MongoDB Atlas | Browser / Atlas | "Save my fitting" (no media, 30 d) + anonymous events. |
+| Storage | Browser localStorage | Browser | Saved fitting (no media), 30 days, "Delete my data". Server save (MongoDB Atlas) not built. |
 
 ## Request flow
+0. Optional swing video: device sends pose keypoints to `POST /v1/swing/analyze`, gets measurements back.
 1. Each UI step posts `FitRequest` (answers + measurements + previous state) to `POST /v1/fit`.
 2. Engine fuses evidence (inverse-variance), runs Takomo rules, validates against catalogue, returns `FitState`
    (per part: value, range, confidence, evidence, reason codes, close call) + diff vs previous.
@@ -43,6 +44,5 @@ picks the spec and its confidence. The LLM host only explains reason codes; it n
 ## Branching
 `main` ← `dev` ← one PR per milestone. Each PR: one review round by a separate agent, fixes applied, merged to `dev`.
 
-## Not in scaffold
-Speed from video (POR-12), photo measurements (POR-13), ball-line lie (POR-14): need Saturday TrackMan footage.
-Capture format (240 fps / HEVC transcode) still open.
+## Not built
+Photo measurements (POR-13), server-side save, real cart links. Built since v1: video club speed and ball-line lie test.
