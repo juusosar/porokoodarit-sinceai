@@ -1,4 +1,4 @@
-import { bestBox, letterbox, toChw } from "./detector";
+import { bestBox, bestHeadBox, letterbox, toChw } from "./detector";
 
 describe("letterbox", () => {
   it("fits portrait 1080x1920 into 640 with side padding", () => {
@@ -32,6 +32,12 @@ describe("bestBox", () => {
 
   it("returns null below the threshold", () => {
     expect(bestBox(out, dims, lb, 0, 0.95)).toBeNull();
+  });
+
+  it("club head: class 1 first, else the most confident box of any class (main's DTL read)", () => {
+    expect(bestHeadBox(out, dims, lb)!.conf).toBeCloseTo(0.99);
+    const noHead = out.map((v, i) => (i >= 15 && i < 18 ? 0 : v)); // clear class 1
+    expect(bestHeadBox(noHead, dims, lb)!.conf).toBeCloseTo(0.9);
   });
 });
 

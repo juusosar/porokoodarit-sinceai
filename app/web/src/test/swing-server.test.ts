@@ -42,3 +42,19 @@ describe('toFitRequest with the server read', () => {
     expect(r.measurements?.speed_7i_mph).toBeUndefined();
   });
 });
+
+describe('reading source + down-the-line samples', () => {
+  it('says who read the swing and why the device was used', async () => {
+    const { readingSource } = await import('@/lib/swing-server');
+    expect(readingSource({ source: 'server', algorithm: 'main@7234843', notes: ['height_default'] })).toEqual({
+      title: 'Read by our server from body keypoints (main@7234843)', detail: ['no height given, so speed is less certain'],
+    });
+    expect(readingSource({ source: 'device', fallback: 'unreachable' }).title).toBe('Read on this device (server not reachable)');
+  });
+  it('runs the club detector only on still frames before the takeaway, at most 40', async () => {
+    const { addressSamples } = await import('@/lib/swing-dtl');
+    expect(addressSamples(600, 20)).toEqual([0, 2, 5, 7, 10, 12, 15, 17]);
+    expect(Math.max(...addressSamples(600, null))).toBeLessThan(40);
+    expect(addressSamples(600, 3)).toEqual([0, 1, 2]);
+  });
+});

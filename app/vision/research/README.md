@@ -12,9 +12,12 @@ Desktop batch pipeline the product's swing analysis comes from. **Do not edit th
 | `all_pose_landmarks.csv`, `out/` | `app/vision/research/` | sample output; 3 swings are a test fixture (`app/api/tests/fixtures`) |
 
 ## Flow in the app
-device: video -> MediaPipe pose (browser) -> 9 keypoints per frame (numbers)
+device: face-on video -> MediaPipe pose (browser) -> 9 keypoints per frame (numbers)
+(optional) down-the-line video -> pose + YOLO club head on ~8 still frames before takeaway (box centres only)
 -> API `POST /v1/swing/analyze` -> `upstream/phase_detector` (phases, tempo) + `upstream/swing_analytics.calculate_club_speed`
--> measurements (`backswing_s`, `downswing_s`, `video_speed_7i_mph`, each with an SD) -> device -> `/v1/fit` (engine decides).
+(+ down-the-line: wrist -> club head px at address, widest shoulders -> upstream `calculate_shaft_length_m` -> shaft used in speed)
+-> measurements (`backswing_s`, `downswing_s`, `video_speed_7i_mph`, `shaft_length_m`, each with an SD) -> device -> `/v1/fit` (engine decides).
+The swing result shows who read it (server / device and why) and what's missing.
 API off / unreachable / no read -> on-device tempo (`app/web/src/lib/pose/tempo.ts`) as before. `VITE_SWING_SERVER=off` skips the API.
 
 ## Sync from main

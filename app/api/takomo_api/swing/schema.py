@@ -46,9 +46,34 @@ class PoseSeries(_Model):
         return self
 
 
-class SwingAnalyzeRequest(_Model):
-    view: Literal["face_on"] = Field(default="face_on", description="Only face-on is analysed (tempo + speed)")
+class ClubHeadTrack(_Model):
+    """Club-head box centre per sample from the on-device detector, normalised to the frame; null = not run / none."""
+
+    x: list[float | None]
+    y: list[float | None]
+
+
+class DtlClip(_Model):
+    """Optional down-the-line clip: pose + club head at address -> the golfer's shaft length (main's DTL read)."""
+
     pose: PoseSeries
+    club_head: ClubHeadTrack
+
+    @model_validator(mode="after")
+    def _same_length(self) -> DtlClip:
+        n = len(self.pose.t_ms)
+        if not (len(self.club_head.x) == len(self.club_head.y) == n):
+            raise ValueError(f"club_head x/y must have {n} values like pose.t_ms")
+        for k in ("11", "12"):
+            if k not in self.pose.landmarks:
+                raise ValueError("shoulders (11, 12) are required for the down-the-line clip")
+        return self
+
+
+class SwingAnalyzeRequest(_Model):
+    view: Literal["face_on"] = Field(default="face_on", description="Main clip is face-on (tempo + speed)")
+    pose: PoseSeries
+    dtl: DtlClip | None = Field(default=None, description="Optional down-the-line clip for shaft length")
     height_cm: float | None = Field(default=None, ge=120, le=230, description="Golfer height, scales hand travel")
 
 
@@ -56,6 +81,10 @@ class SwingAnalysis(_Model):
     backswing_s: Observation | None = None
     downswing_s: Observation | None = None
     video_speed_7i_mph: Observation | None = None
+    shaft_length_m: Observation | None = Field(
+        default=None,
+        description="Golfer's own shaft, hands to club head at address (down-the-line clip); used for speed",
+    )
     events_ms: dict[str, float] = Field(default_factory=dict, description="Swing event times, real ms")
     algorithm: str = Field(description="Upstream code version, e.g. 'main@7234843'")
     notes: list[str] = Field(default_factory=list, description="Why a value is missing or less certain")
