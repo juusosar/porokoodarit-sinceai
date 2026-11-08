@@ -2,7 +2,7 @@
   "about": "Fixed host (Gront) banner lines on the screens after chat. Shown by the web app, signed for the voice by the API (copy in api/takomo_api/data, synced by python -m takomo_api.export_schema). Each line is a list of paragraphs; the voice reads them joined by a space.",
   "lines": {
     "swing_intro": ["One normal swing. Let’s see what your clubs are working with."],
-    "swing_reading": ["Reading your swing right here on your phone. Nothing gets uploaded."],
+    "swing_reading": ["Reading your swing right here on your device. Nothing gets uploaded."],
     "swing_tempo": ["Got your timing. Tempo helps pick the shaft profile; your answers guide the rest."],
     "swing_no_tempo": ["No timing this time. That’s fine: we’ll lean on your answers."],
     "enrichment_intro": [

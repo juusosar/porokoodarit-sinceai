@@ -523,7 +523,7 @@
     },
     "Measurements": {
       "additionalProperties": false,
-      "description": "Values measured on the phone / launch monitor. Keys follow lab phone_measurements.csv.",
+      "description": "Values measured on the device / launch monitor. Keys follow lab phone_measurements.csv.",
       "properties": {
         "backswing_s": {
           "anyOf": [

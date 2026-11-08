@@ -229,7 +229,7 @@ export interface FitRequest {
   step: Step1;
 }
 /**
- * Values measured on the phone / launch monitor. Keys follow lab phone_measurements.csv.
+ * Values measured on the device / launch monitor. Keys follow lab phone_measurements.csv.
  *
  * This interface was referenced by `TakomoFitStateV1`'s JSON-Schema
  * via the `definition` "Measurements".
