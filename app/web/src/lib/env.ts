@@ -7,6 +7,7 @@ const BUILD = {
   VITE_CLUB_TRACKING: import.meta.env.VITE_CLUB_TRACKING as string | undefined,
   VITE_VOICE: import.meta.env.VITE_VOICE as string | undefined,
   VITE_LIVE_FIT_CARD: import.meta.env.VITE_LIVE_FIT_CARD as string | undefined,
+  VITE_SWING_SERVER: import.meta.env.VITE_SWING_SERVER as string | undefined,
 };
 type Key = keyof typeof BUILD;
 

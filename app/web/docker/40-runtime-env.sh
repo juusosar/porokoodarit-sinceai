@@ -8,7 +8,8 @@ window.__TAKOMO_ENV__ = {
   VITE_SHOP_URL: "$(esc "${VITE_SHOP_URL:-}")",
   VITE_CLUB_TRACKING: "$(esc "${VITE_CLUB_TRACKING:-}")",
   VITE_VOICE: "$(esc "${VITE_VOICE:-}")",
-  VITE_LIVE_FIT_CARD: "$(esc "${VITE_LIVE_FIT_CARD:-}")"
+  VITE_LIVE_FIT_CARD: "$(esc "${VITE_LIVE_FIT_CARD:-}")",
+  VITE_SWING_SERVER: "$(esc "${VITE_SWING_SERVER:-}")"
 };
 JS
 echo "runtime env written to /usr/share/nginx/html/env.js"

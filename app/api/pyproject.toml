@@ -10,6 +10,9 @@ dependencies = [
   "pydantic-settings>=2.4",
   "google-genai>=1.30",
   "httpx>=0.27",  # TTS provider calls (voice module)
+  # swing analysis (main's Python, takomo_api/swing/upstream)
+  "numpy>=1.26",
+  "pandas>=2.2,<3",
 ]
 
 [project.optional-dependencies]
@@ -24,11 +27,13 @@ build-backend = "setuptools.build_meta"
 include = ["takomo_api*"]
 
 [tool.setuptools.package-data]
-takomo_api = ["data/*.json", "prompts/*.md"]
+takomo_api = ["data/*.json", "prompts/*.md", "swing/upstream/UPSTREAM"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# verbatim copy of main's code (app/vision/sync-main.sh): not reformatted here
+extend-exclude = ["takomo_api/swing/upstream"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

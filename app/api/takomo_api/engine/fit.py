@@ -254,6 +254,8 @@ METHOD_LABEL = {
     "static_chart": "Height + wrist-to-floor chart",
     "photo": "Photo measurement",
     "video_pose": "Swing video (on device)",
+    "video_pose_server": "Swing video keypoints",
+    "video_pendulum": "Swing video speed (estimate)",
     "landing_angle": "Launch monitor landing angle",
     "launch_spin": "Launch monitor launch + spin",
 }
@@ -454,6 +456,8 @@ def run(req: FitRequest, *, plan_next: bool = True) -> FitState:
             reasons.append(Reason(code="SPEED_FROM_CARRY_TYPICAL_LOFT", params={"loft": round(Fu.REF_LOFT_DEG)}))
     elif weight.get("launch_monitor_carry", 0) >= Fu.WEIGHT_TAG_MIN:
         reasons.append(Reason(code="SPEED_FROM_CARRY"))
+    elif weight.get("video_pendulum", 0) >= Fu.WEIGHT_TAG_MIN:
+        reasons.append(Reason(code="SPEED_FROM_VIDEO"))
     elif top_speed is not None and top_speed.method == "score_prior":
         reasons.append(Reason(code="SPEED_FROM_SCORE"))
     if flight_like is not None:

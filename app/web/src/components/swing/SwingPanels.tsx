@@ -5,6 +5,7 @@ import { drawSkeleton } from '@/lib/pose/overlay';
 import type { SwingAnalysis } from '@/lib/pose/analyze';
 import framing from '@/assets/swing-framing-face-on.jpg';
 import { CameraGuide } from './CameraGuide';
+import { swingServerEnabled } from '@/lib/swing-server';
 import { HearItButton, hostParagraphs, useHostLine, useSpeakLine, type HostLineId } from '@/features/voice';
 import { HostMark } from '@/components/HostMark';
 
@@ -49,5 +50,5 @@ export function ProcessingStatus({ phase, progress }: { phase: string; progress:
   const rows = [{ title: 'Reading your swing on this device', done, active: phase === 'analyzing' }, { title: 'Finding takeaway, top and impact', done, active: false }, { title: 'Timing backswing and downswing', done, active: false }];
   return <ol className="divide-y divide-border">{rows.map((row, i) => <li key={row.title} className="flex items-center gap-3 py-4 text-sm">{row.done ? <CheckCircle2 className="size-5 text-primary" /> : row.active ? <Loader2 className="size-5 animate-spin text-primary motion-reduce:animate-none" /> : <Circle className="size-5 text-muted-foreground" />}<span className={row.active || row.done ? 'text-foreground' : 'text-muted-foreground'}>{row.title}</span>{i === 0 && <span className="ml-auto tabular-nums text-primary">{done ? '100%' : `${progress}%`}</span>}</li>)}</ol>;
 }
-export function PrivacyNotice() { return <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3" />Your video stays on this device. Only timing numbers are used.</p>; }
+export function PrivacyNotice() { return <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3" />{swingServerEnabled() ? 'Your video stays on this device. Only body keypoint positions (numbers, no images) are sent to read timing and speed.' : 'Your video stays on this device. Only timing numbers are used.'}</p>; }
 export function GuideToggle({ enabled, onClick }: { enabled: boolean; onClick: () => void }) { return <Button size="sm" variant="outline" onClick={onClick} aria-pressed={enabled}><Crosshair />{enabled ? 'Hide guides' : 'Show guides'}</Button>; }

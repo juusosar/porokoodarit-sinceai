@@ -9,7 +9,8 @@ Hosting: API on Google Cloud Run, europe-north1 (Finland). Gemini via Vertex AI,
 | Chat messages the golfer types + profile labels | Phone | API, then Gemini (Google) to write the host's reply (last 6 turns) | localStorage (chat history); not stored by the API | 30 days in browser; Gemini per Google's API terms |
 | Swing video | Phone (MediaPipe pose, self-hosted WASM) | Nowhere | Not stored | Gone when the page closes |
 | Ball-line test face photo | Phone (shown from a local object URL; the golfer taps 4 points) | Nowhere | Not stored | Gone when the shot is saved or the page closes |
-| Swing timing (backswing / downswing seconds) | Phone | API, per request | localStorage | 30 days, or until "Delete my data" |
+| Swing pose keypoints (9 body points per frame as numbers: head, shoulders, wrists, ankles; no images) | Phone | API `/v1/swing/analyze`, once per video (off with `VITE_SWING_SERVER=off`) | Not stored or logged by the API | Gone after the response |
+| Swing timing (backswing / downswing seconds) + estimated club speed | API (main's algorithm), phone as fallback | API, per request | localStorage | 30 days, or until "Delete my data" |
 | Extra data (launch monitor speed, carry, launch, spin, landing angle, strike, ball-line tilt angles) | Phone | API: speed, carry, launch, spin, landing angle and the mean ball-line tilt (strike stays on the phone) | localStorage | 30 days, or until "Delete my data" |
 | Fit state (engine labels, reason codes and their params, e.g. carry said/used, own loft; rebuilt server-side from inputs) | API | Gemini, to word the explanation | Not stored by the API | Gemini per Google's API terms |
 | Host lines (chat replies + explanation lines the API signed) | API | ElevenLabs, only when voice is on | Audio in API memory cache (not on disk) | Until instance restart / cache eviction; ElevenLabs per its API terms |
@@ -21,7 +22,7 @@ Not built (no data flows): body / hand photo measurement, club tracking in the m
 server-side "save my fitting" (MongoDB Atlas), analytics events, Modal GPU path.
 
 Rules
-- Video never leaves the phone. Only timing numbers do.
+- Video never leaves the device. Only numbers do: pose keypoints (for timing and speed) and the timing/speed results.
 - What the golfer types in chat goes to Gemini. Don't type names or contact details; the host never asks for them.
 - API keys live only on the server. The voice endpoint only speaks lines the API signed itself.
 - Pose model, MediaPipe and ONNX Runtime WASM are self-hosted with the web app. Fonts are the one third-party load.
