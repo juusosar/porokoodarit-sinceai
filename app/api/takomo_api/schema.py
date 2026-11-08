@@ -88,6 +88,9 @@ class Measurements(_Model):
     wrist_to_floor_cm: Observation | None = None
     hand_length_cm: Observation | None = None
     speed_7i_mph: Observation | None = None
+    # Club speed estimated from swing-video keypoints (main's pendulum model, /v1/swing/analyze). Kept apart from
+    # speed_7i_mph so a launch monitor still counts as the measured speed; wide SD, a hint for the engine.
+    video_speed_7i_mph: Observation | None = None
     backswing_s: Observation | None = None
     downswing_s: Observation | None = None
     lie_need_deg: Observation | None = None
@@ -115,6 +118,7 @@ MEASUREMENT_BOUNDS = {
     "wrist_to_floor_cm": (50, 120),
     "hand_length_cm": (12, 26),
     "speed_7i_mph": (30, 130),
+    "video_speed_7i_mph": (30, 130),
     "backswing_s": (0.3, 3.0),
     "downswing_s": (0.1, 1.0),
     "lie_need_deg": (-10, 10),

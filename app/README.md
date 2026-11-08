@@ -24,7 +24,8 @@ Hosting: API on Google Cloud Run, europe-north1 (Finland). Gemini via Vertex AI,
 | Card answers (hand, sex, score, carry, loft, flight, height, wrist-to-floor, glove) | Phone | API (Cloud Run), per request; also Gemini, as the card summary turn and profile labels in the chat | This browser's localStorage | 30 days, or until "Delete my data" |
 | Chat messages the golfer types + profile labels | Phone | API, then Gemini (Google) to write the host's reply (last 6 turns) | localStorage (chat history); not stored by the API | 30 days in browser; Gemini per Google's API terms |
 | Swing video | Phone (MediaPipe pose, self-hosted WASM) | Nowhere | Not stored | Gone when the page closes |
-| Swing timing (backswing / downswing seconds) | Phone | API, per request | localStorage | 30 days, or until "Delete my data" |
+| Swing pose keypoints (9 body points per frame as numbers: head, shoulders, wrists, ankles; no images) | Phone | API `/v1/swing/analyze`, once per video (off with `VITE_SWING_SERVER=off`) | Not stored or logged by the API | Gone after the response |
+| Swing timing (backswing / downswing seconds) + estimated club speed | API (main's algorithm), phone as fallback | API, per request | localStorage | 30 days, or until "Delete my data" |
 | Extra data (launch monitor speed, carry, launch, spin, strike) | Phone | API: speed and carry only | localStorage | 30 days, or until "Delete my data" |
 | Fit state (engine labels, reason codes and their params, e.g. carry said/used, own loft; rebuilt server-side from inputs) | API | Gemini, to word the explanation | Not stored by the API | Gemini per Google's API terms |
 | Host lines (chat replies + explanation lines the API signed) | API | ElevenLabs, only when voice is on | Audio in API memory cache (not on disk) | Until instance restart / cache eviction; ElevenLabs per its API terms |
@@ -75,7 +76,7 @@ CI fails if either generated file is stale.
 - Host chat (profiling with "Gront") -> `POST /v1/chat` (our LLM adapter, scripted fallback). Was Lovable AI gateway.
 - Fit + reasons -> `POST /v1/fit`, host walkthrough + voice -> `POST /v1/explain` (+ `/v1/speak`). Was "pending validation".
 - Saved fitting, extra data, head selection -> browser localStorage (30 days). Was Lovable Cloud (Supabase).
-- Swing video -> read on the device with MediaPipe pose (tempo); never uploaded. Was a private cloud upload.
+- Swing video -> pose read on the device (MediaPipe); keypoints only -> `POST /v1/swing/analyze` (main's algorithm: tempo + estimated speed), on-device tempo as fallback. Video never uploaded. Was a private cloud upload. See `app/vision/research/README.md`.
 - Routes are files in `src/routes` (TanStack Router plugin regenerates `src/routeTree.gen.ts`; commit it).
 - Hidden LLM switch panel: add `?demo=1`. Legacy screens for reference: `app/web_legacy`.
 
