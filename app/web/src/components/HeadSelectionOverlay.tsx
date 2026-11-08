@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLen } from '@/lib/units';
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -8,8 +9,9 @@ import type { HeadSelection, SelectionSpecs } from '@/lib/head-selection-schema'
 import { specText } from '@/lib/spec-text';
 
 export function SpecSummary({ specs }: { specs: SelectionSpecs }) {
+  const L = useLen();
   const rows: [string, string | null][] = [['Shaft', specs.shaft], ['Length', specs.length], ['Lie', specs.lie], ['Grip', specs.grip], ['Stock or custom', specs.purchase]];
-  return <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">{rows.map(([label, value]) => <div key={label}><dt className="text-xs uppercase text-muted-foreground">{label}</dt><dd className="mt-1 break-words">{value ?? 'Not determined yet'}</dd></div>)}</dl>;
+  return <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">{rows.map(([label, value]) => <div key={label}><dt className="text-xs uppercase text-muted-foreground">{label}</dt><dd className="mt-1 break-words">{value ? L(value) : 'Not determined yet'}</dd></div>)}</dl>;
 }
 /** Box truck that drives in, parks, drives off; drawn as one SVG so the Takomo logo and headlight stay on the truck. */
 function DeliveryTruck() {

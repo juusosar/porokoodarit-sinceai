@@ -27,7 +27,7 @@ export function swingDataSteps(r: SwingRecord | null): SwingDataStep[] {
   steps.push({ title: "Body pose read on this device", points: clip });
 
   const ev = Object.entries(r.events ?? {}).sort((a, b) => a[1] - b[1] || EVENT_ORDER.indexOf(a[0]) - EVENT_ORDER.indexOf(b[0]));
-  if (ev.length) steps.push({ title: server ? "Swing phases (main’s algorithm)" : "Swing phases (on this device)", points: ev.map(([k, ms]) => ({ label: k.replace(/-/g, " "), value: s2(ms / 1000) })) });
+  if (ev.length) steps.push({ title: server ? "Swing phases (server)" : "Swing phases (on this device)", points: ev.map(([k, ms]) => ({ label: k.replace(/-/g, " "), value: s2(ms / 1000) })) });
 
   const t = r.tempo;
   steps.push({

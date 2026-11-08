@@ -2,6 +2,7 @@
 // parts filling in, with a short "what changed" line after each update. UX not final.
 // Self-contained on purpose: to remove it, delete the <LiveFitCard /> line in routes/__root.tsx
 // (or set VITE_LIVE_FIT_CARD=off at runtime). It only reads the browser store, never writes.
+import { useLen } from "@/lib/units";
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -62,6 +63,7 @@ export function movedParts(state: FitState | null): string[] {
 }
 
 export function LiveFitCard() {
+  const L = useLen();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const hidden = HIDDEN_ON.some((p) => path === p || path.startsWith(`${p}/`));
   const [version, setVersion] = useState(0);
@@ -143,12 +145,12 @@ export function LiveFitCard() {
       </button>
       {moved.length > 0 && (
         <p role="status" className="border-t border-border px-3 py-1.5 text-xs text-primary">
-          {moved.join(" · ")}
+          {L(moved.join(" · "))}
         </p>
       )}
       {!collapsed && state.next_steps?.[0] && (
         <p className="border-t border-border px-3 py-1.5 text-xs text-muted-foreground" data-testid="live-next-step">
-          Next: {renderReason({ code: state.next_steps[0].code, params: {} })}
+          Next: {L(renderReason({ code: state.next_steps[0].code, params: {} }))}
         </p>
       )}
       {!collapsed && (
@@ -158,7 +160,7 @@ export function LiveFitCard() {
             return (
               <div key={key} className="min-w-0" data-testid={`live-part-${key}`}>
                 <dt className="truncate text-[10px] uppercase text-muted-foreground">{name}</dt>
-                <dd className="truncate font-medium">{p?.value == null ? "—" : p.label}</dd>
+                <dd className="truncate font-medium">{p?.value == null ? "—" : L(p.label)}</dd>
                 <div className="mt-1 h-1 bg-muted" aria-hidden>
                   <div className="h-1 bg-primary transition-all" style={{ width: `${confidenceView(p?.confidence).pct}%` }} />
                 </div>
