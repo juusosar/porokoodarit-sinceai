@@ -1,0 +1,31 @@
+# research: Katariina's swing processing code (from `main`)
+
+Desktop batch pipeline the product's swing analysis comes from. **Do not edit these copies here**: change them on
+`main`, then sync (below). App-side fixes go in `app/api/takomo_api/swing/measure.py`.
+
+| main path | here | used by the app |
+|---|---|---|
+| `phase_detector.py` | `app/api/takomo_api/swing/upstream/phase_detector.py` | yes: swing phases + tempo (API) |
+| `swing_analytics.py` | `app/api/takomo_api/swing/upstream/swing_analytics.py` | yes: club speed (API); its `categorize_*` / `predict_fitting` rules are not used, the engine decides |
+| `video_preprocessing.py`, `.ipynb` | `app/vision/research/` | no: desktop batch (cv2 + MediaPipe + YOLO, annotated videos). The device does this part in the browser |
+| `models/pose_landmarker_lite.task`, `models/swingtrace-yolo11m.pt` | `app/vision/research/models/` | export source for the web models |
+| `all_pose_landmarks.csv`, `out/` | `app/vision/research/` | sample output; 3 swings are a test fixture (`app/api/tests/fixtures`) |
+
+## Flow in the app
+device: video -> MediaPipe pose (browser) -> 9 keypoints per frame (numbers)
+-> API `POST /v1/swing/analyze` -> `upstream/phase_detector` (phases, tempo) + `upstream/swing_analytics.calculate_club_speed`
+-> measurements (`backswing_s`, `downswing_s`, `video_speed_7i_mph`, each with an SD) -> device -> `/v1/fit` (engine decides).
+API off / unreachable / no read -> on-device tempo (`app/web/src/lib/pose/tempo.ts`) as before. `VITE_SWING_SERVER=off` skips the API.
+
+## Sync from main
+```bash
+app/vision/sync-main.sh           # copy main's files into place, record the SHA in upstream/UPSTREAM
+cd app/api && pytest -q tests/test_swing.py
+app/vision/sync-main.sh --check   # CI runs this and warns when main has moved on
+```
+
+## Run the desktop pipeline
+```bash
+cd app/vision/research
+PYTHONPATH=../../api/takomo_api/swing/upstream python video_preprocessing.py   # needs opencv, mediapipe, ultralytics
+```
