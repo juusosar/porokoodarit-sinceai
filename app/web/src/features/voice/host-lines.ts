@@ -3,7 +3,7 @@ import data from "@shared/host_lines.json";
 import { API_URL, voiceMode } from "./config";
 import type { Line } from "./player";
 
-// Fixed host banner lines (app/shared/host_lines.json). The web shows them; the API signs the same text
+// Fixed host lines: chat greeting + banners after chat (app/shared/host_lines.json). The web shows them; the API signs the same text
 // for the server voice (GET /v1/voice/lines), so /v1/speak still only reads lines the API vouches for.
 export type HostLineId = keyof typeof data.lines;
 
@@ -40,7 +40,7 @@ export function preloadHostLines(): void {
   void loadTokens();
 }
 
-/** Line for a fixed banner; the token arrives a moment later (then useSpeakLine plays it). */
+/** Line for a fixed host line; the token arrives a moment later (then useSpeakLine plays it). */
 export function useHostLine(id: HostLineId): Line {
   const [map, setMap] = useState<Tokens>({});
   useEffect(() => {

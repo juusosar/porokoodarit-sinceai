@@ -33,7 +33,7 @@ def audio_token(text: str) -> str | None:
 
 @cache
 def host_lines() -> dict[str, str]:
-    """Fixed host banner lines (app/shared/host_lines.json), as the voice reads them: paragraphs joined."""
+    """Fixed host lines: chat greeting + banners (app/shared/host_lines.json), as the voice reads them: paragraphs joined."""
     raw = json.loads((Path(__file__).resolve().parents[1] / "data" / "host_lines.json").read_text())["lines"]
     return {k: " ".join(v) for k, v in raw.items()}
 
@@ -45,7 +45,7 @@ def build_router() -> APIRouter:
 
     @router.get("/v1/voice/lines")
     def fixed_lines() -> dict:
-        """Tokens for the fixed banner lines. Same text every visit, so after the first play each clip is a
+        """Tokens for the fixed host lines. Same text every visit, so after the first play each clip is a
         cache hit (server LRU + browser cache): the daily character budget pays for each line about once."""
         sp = speech()
         return {"tokens": {k: sp.sign(t) for k, t in host_lines().items()}}
