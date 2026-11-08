@@ -11,7 +11,7 @@ import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
 import { FIX_TEXT, confirmPending, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
 import { useSpeakLine, VoiceToggle } from "@/features/voice";
-import { HostMark } from '@/components/HostMark';
+import { HostMark } from "@/components/HostMark";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -292,7 +292,7 @@ function Avatar({ speaking, small }: { speaking?: boolean; small?: boolean }) {
   return (
     <div className="relative shrink-0">
       {speaking && <span className="absolute -inset-1 animate-pulse rounded-full border border-primary/50" />}
-      <HostMark className={`relative ${size} rounded-full border-2 border-primary`} />
+      <HostMark label="Gront" className={`relative ${size} rounded-full border-2 border-primary`} />
     </div>
   );
 }
