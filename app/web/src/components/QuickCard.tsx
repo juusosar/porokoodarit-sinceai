@@ -61,6 +61,7 @@ const IN_CM = 2.54;
 /** Lengths are kept in cm; with the global toggle on inches the slider and label work in inches (POR-48). */
 function fmt(q: Range, n: number, units: Units = "metric") {
   if (q.imperial && units === "imperial") return fmtCm(n, units);
+  if (q.imperial) n = Math.round(n / q.step) * q.step; // value set in inches: snap back to the cm slider step
   return `${n}${q.plusMax && n >= q.max ? "+" : ""}${q.unit}`;
 }
 function slider(q: Range, cm: number, units: Units) {
