@@ -77,6 +77,31 @@ class SwingAnalyzeRequest(_Model):
     height_cm: float | None = Field(default=None, ge=120, le=230, description="Golfer height, scales hand travel")
 
 
+class DtlDetails(_Model):
+    samples: int
+    address_ms: float | None = Field(default=None, description="Takeaway start in the down-the-line clip, real ms")
+    still_samples: int = Field(description="Samples before address used for the read (main: max 40)")
+    head_found: int = Field(description="Still samples where the club head was found")
+    shaft_px: float | None = Field(default=None, description="Median hands -> club head distance, px")
+    shoulder_px: float | None = Field(default=None, description="Widest shoulder distance in the clip, px")
+
+
+class SwingDetails(_Model):
+    """Every intermediate number of the read, for the result screen (how we got there)."""
+
+    samples: int
+    fps: float = Field(description="Real-time samples per second used")
+    duration_s: float
+    tempo_ratio: float | None = None
+    height_m: float = Field(description="Height used to scale hand travel")
+    height_from: Literal["profile", "default"]
+    shaft_m: float = Field(description="Hands -> club head length used in the speed model")
+    shaft_from: Literal["down_the_line", "default"]
+    hand_travel_m: float | None = Field(default=None, description="Hands, top -> impact (upstream get_top_bottom_d)")
+    hand_speed_mps: float | None = Field(default=None, description="Mean hand speed in the downswing")
+    dtl: DtlDetails | None = None
+
+
 class SwingAnalysis(_Model):
     backswing_s: Observation | None = None
     downswing_s: Observation | None = None
@@ -86,5 +111,6 @@ class SwingAnalysis(_Model):
         description="Golfer's own shaft, hands to club head at address (down-the-line clip); used for speed",
     )
     events_ms: dict[str, float] = Field(default_factory=dict, description="Swing event times, real ms")
+    details: SwingDetails | None = None
     algorithm: str = Field(description="Upstream code version, e.g. 'main@7234843'")
     notes: list[str] = Field(default_factory=list, description="Why a value is missing or less certain")
