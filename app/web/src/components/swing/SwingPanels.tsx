@@ -41,7 +41,7 @@ export function VideoHUD({ url, guides, onError, analysis }: { url: string; guid
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [analysis]);
-  return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <CameraGuide className="pb-12" />}</div>;
+  return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <CameraGuide video={videoRef} />}</div>;
 }
 export function ProcessingStatus({ phase, progress }: { phase: string; progress: number }) {
   const done = phase === 'saved';
