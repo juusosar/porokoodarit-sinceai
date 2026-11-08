@@ -190,13 +190,20 @@ body main { position: relative; z-index: 1; background-color: transparent; }
   font-family: 'Barlow', sans-serif;
 }
 
+/* Drive in from the left, park centred, drive off right. Each loop restarts off-screen, so the
+   jump back is never animated across the stage (the old 85%->86% keyframe streaked the truck back). */
 @keyframes takomo-delivery {
-  0%, 65% { transform: translateX(-50%); }
-  85% { transform: translateX(180%); }
-  86% { transform: translateX(-230%); }
-  100% { transform: translateX(-50%); }
+  0% { transform: translateX(-260%); animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  28%, 68% { transform: translateX(-50%); animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5); }
+  92%, 100% { transform: translateX(200%); }
 }
-.takomo-truck { left: 50%; animation: takomo-delivery 5s ease-in-out infinite; }
+@keyframes takomo-wheel {
+  0% { rotate: 0deg; animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+  28%, 68% { rotate: 720deg; animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.5); }
+  92%, 100% { rotate: 1440deg; }
+}
+.takomo-truck { left: 50%; transform: translateX(-50%); animation: takomo-delivery 6s infinite; will-change: transform; }
+.takomo-wheel { transform-box: fill-box; transform-origin: center; animation: takomo-wheel 6s infinite; }
 .club-reveal { display: grid; grid-template-rows: minmax(0, 1fr); place-items: center; height: 380px; max-height: 58dvh; margin-top: 24px; padding: 16px; }
 .club-cutout { width: 100%; height: 100%; min-height: 0; max-height: 100%; object-fit: contain; opacity: 0; transform: translateY(32px) scale(0.94); transition: opacity 1.6s ease, transform 1.8s cubic-bezier(0.16, 1, 0.3, 1); }
 .club-reveal.is-visible .club-cutout { opacity: 1; transform: translateY(0) scale(1); }
@@ -207,7 +214,7 @@ body main { position: relative; z-index: 1; background-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   [data-scroll-reveal], [data-scroll-reveal].scroll-reveal-pending { opacity: 1; translate: none; transition: none; }
   .club-cutout { opacity: 1; transform: none; transition: none; }
-  .takomo-truck { animation: none; left: 50%; transform: translateX(-50%); }
+  .takomo-truck, .takomo-wheel { animation: none; }
 }
 
 .chat-log { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
