@@ -24,3 +24,10 @@ it('fits the guide to the letterboxed picture, not the whole box', async () => {
   expect(videoContentBox(640, 360, 1080, 1920)).toEqual({ left: 218.75, top: 0, width: 202.5, height: 360 });
   expect(videoContentBox(300, 400, 0, 0)).toBeUndefined();
 });
+
+it('the video display shows the down-the-line guide for the second clip', async () => {
+  const { VideoHUD } = await import('@/components/swing/SwingPanels');
+  render(<VideoHUD url="blob:dtl" view="dtl" guides onError={() => undefined} />);
+  expect(screen.getByTestId('camera-guide-dtl')).toBeInTheDocument();
+  expect(screen.queryByTestId('camera-guide-face-on')).toBeNull();
+});

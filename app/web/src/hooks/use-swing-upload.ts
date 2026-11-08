@@ -92,6 +92,14 @@ export function useSwingUpload(enabled: boolean) {
   const [plan, setPlan] = useState<StagePlan>({ dtl: false, server: false });
   /** Optional second clip, down-the-line, for the golfer's shaft length (speed). Never uploaded either. */
   const [dtlFile, setDtlFile] = useState<File | null>(null);
+  const [dtlUrl, setDtlUrl] = useState<string | null>(null);
+  const [dtlAnalysis, setDtlAnalysis] = useState<SwingAnalysis | null>(null);
+  const dtlLocalUrl = useRef<string | null>(null);
+  const setDtl = (next: File | null) => {
+    if (dtlLocalUrl.current) URL.revokeObjectURL(dtlLocalUrl.current);
+    dtlLocalUrl.current = next ? URL.createObjectURL(next) : null;
+    setDtlFile(next); setDtlUrl(dtlLocalUrl.current); setDtlAnalysis(null);
+  };
   const localUrl = useRef<string | null>(null);
   const ctrl = useRef<AbortController | null>(null);
   const restore = useCallback(async () => {
@@ -105,20 +113,20 @@ export function useSwingUpload(enabled: boolean) {
   useEffect(() => {
     if (enabled) getPoseLandmarker().catch(() => undefined); // warm up the model while the golfer reads
   }, [enabled]);
-  useEffect(() => () => { ctrl.current?.abort(); if (localUrl.current) URL.revokeObjectURL(localUrl.current); }, []);
+  useEffect(() => () => { ctrl.current?.abort(); if (localUrl.current) URL.revokeObjectURL(localUrl.current); if (dtlLocalUrl.current) URL.revokeObjectURL(dtlLocalUrl.current); }, []);
   async function select(next: File) {
     setBusy(true); setError('');
     try {
       const details = await inspectVideo(next);
       if (localUrl.current) URL.revokeObjectURL(localUrl.current);
       localUrl.current = URL.createObjectURL(next);
-      setFile(next); setDtlFile(null); setUrl(localUrl.current); setTiming(details); setName(next.name); setSize(next.size); setAnalysis(null); setPhase('preview');
+      setFile(next); setDtl(null); setUrl(localUrl.current); setTiming(details); setName(next.name); setSize(next.size); setAnalysis(null); setPhase('preview');
     } catch { setError('This video could not be read. Choose an MP4, MOV or WebM under 50 MB and 10 minutes.'); }
     finally { setBusy(false); }
   }
   async function selectDtl(next: File) {
     setError('');
-    try { await inspectVideo(next); setDtlFile(next); }
+    try { await inspectVideo(next); setDtl(next); }
     catch { setError('This down-the-line video could not be read. Choose an MP4, MOV or WebM under 50 MB.'); }
   }
   /** Call from the click handler: iOS Safari only loads an unplayed video inside a user gesture. */
@@ -128,8 +136,8 @@ export function useSwingUpload(enabled: boolean) {
     // the down-the-line clip starts loading inside the same tap (iOS), read after the face-on clip
     // speed (and so club length) needs a slow-motion clip: at normal speed the second clip isn't read at all
     const wantDtl = !!dtlFile && swingServerEnabled();
-    const dtlUrl = wantDtl && slowMo > 1 ? URL.createObjectURL(dtlFile) : null;
-    const dtl = dtlUrl ? loadVideo(dtlUrl) : null;
+    const dtl = wantDtl && slowMo > 1 && dtlLocalUrl.current ? loadVideo(dtlLocalUrl.current) : null;
+    setDtlAnalysis(null);
     dtl?.loaded.catch(() => undefined);
     ctrl.current?.abort();
     const c = new AbortController(); ctrl.current = c;
@@ -156,6 +164,7 @@ export function useSwingUpload(enabled: boolean) {
             setStage('dtl_pose');
             await withTimeout(dtl.loaded, DTL_LOAD_TIMEOUT_MS, c.signal);
             const d = await analyzeVideo(dtl.video, { slowMo, onProgress: p => setProgress(Math.round((0.6 + p * 0.3) * 100)), signal: c.signal });
+            setDtlAnalysis(d);
             if (d.detectedShare < 0.6) extraNotes.push('dtl_body_not_visible');
             else {
               setStage('club_head');
@@ -227,14 +236,13 @@ export function useSwingUpload(enabled: boolean) {
     } finally {
       setBusy(false); video.removeAttribute('src'); video.load();
       if (dtl) { dtl.video.removeAttribute('src'); dtl.video.load(); }
-      if (dtlUrl) URL.revokeObjectURL(dtlUrl);
     }
   }
   async function discard() {
     ctrl.current?.abort();
     try { deleteSwing(getFittingToken()); } catch { /* nothing saved */ }
     if (localUrl.current) { URL.revokeObjectURL(localUrl.current); localUrl.current = null; }
-    setUrl(null); setFile(null); setDtlFile(null); setTiming(null); setRecord(null); setAnalysis(null); setError(''); setPhase('selection');
+    setUrl(null); setFile(null); setDtl(null); setTiming(null); setRecord(null); setAnalysis(null); setError(''); setPhase('selection');
   }
-  return { phase, stage, plan, file, url, timing, name, size, progress, error, busy, record, analysis, slowMo, setSlowMo, dtlFile, selectDtl, clearDtl: () => setDtlFile(null), select, submit, discard, restore, cancel: () => ctrl.current?.abort(), failPlayback: () => setError('Your browser cannot play this video. Choose another video or export an MP4 original.') };
+  return { phase, stage, plan, file, url, timing, name, size, progress, error, busy, record, analysis, slowMo, setSlowMo, dtlFile, dtlUrl, dtlAnalysis, selectDtl, clearDtl: () => setDtl(null), select, submit, discard, restore, cancel: () => ctrl.current?.abort(), failDtlPlayback: () => { setDtl(null); setError('Your browser cannot play the down-the-line video, so it was removed. Choose another or continue without it.'); }, failPlayback: () => setError('Your browser cannot play this video. Choose another video or export an MP4 original.') };
 }

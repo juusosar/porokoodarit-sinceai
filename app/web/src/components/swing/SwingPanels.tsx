@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { drawSkeleton } from '@/lib/pose/overlay';
 import type { SwingAnalysis } from '@/lib/pose/analyze';
 import framing from '@/assets/swing-framing-face-on.jpg';
-import { CameraGuide } from './CameraGuide';
+import { CameraGuide, type GuideView } from './CameraGuide';
 import { swingServerEnabled } from '@/lib/swing-server';
 import type { Stage, StagePlan } from '@/hooks/use-swing-upload';
 import { HearItButton, hostParagraphs, useHostLine, useSpeakLine, type HostLineId } from '@/features/voice';
@@ -25,7 +25,7 @@ export function FramingExample() {
 export function ActionSelector({ record, upload, disabled }: { record: () => void; upload: () => void; disabled: boolean }) {
   return <div className="grid gap-3 sm:grid-cols-2">{[{ title: 'Record a swing', subtitle: 'Open camera', Icon: Camera, onClick: record }, { title: 'Upload a video', subtitle: 'Select from device library', Icon: UploadCloud, onClick: upload }].map(({ title, subtitle, Icon, onClick }) => <Button key={title} variant="outline" disabled={disabled} onClick={onClick} className="h-auto min-h-28 justify-start gap-4 rounded-lg border-border bg-card px-5 py-5 text-left hover:border-primary/40"><Icon className="text-primary" /><span className="min-w-0"><span className="block whitespace-normal font-display text-2xl font-bold uppercase italic">{title}</span><span className="mt-1 block whitespace-normal text-xs text-muted-foreground">{subtitle}</span></span><ArrowUpRight className="ml-auto" /></Button>)}</div>;
 }
-export function VideoHUD({ url, guides, onError, analysis }: { url: string; guides: boolean; onError: () => void; analysis?: SwingAnalysis | null }) {
+export function VideoHUD({ url, guides, onError, analysis, view = 'face-on' }: { url: string; guides: boolean; onError: () => void; analysis?: SwingAnalysis | null; view?: GuideView }) {
   const videoRef = useRef<HTMLVideoElement>(null), canvasRef = useRef<HTMLCanvasElement>(null);
   // Pose skeleton follows playback once the swing has been read (shows what was measured).
   useEffect(() => {
@@ -44,7 +44,7 @@ export function VideoHUD({ url, guides, onError, analysis }: { url: string; guid
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [analysis]);
-  return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <CameraGuide video={videoRef} />}</div>;
+  return <div className="relative aspect-video overflow-hidden rounded-lg bg-card"><video ref={videoRef} src={url} controls playsInline muted preload="metadata" onError={onError} className="h-full w-full object-contain" />{analysis && <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute" />}{guides && !analysis && <CameraGuide view={view} video={videoRef} />}</div>;
 }
 const STAGE_ROWS: { stage: Stage; title: string; when?: keyof StagePlan }[] = [
   { stage: 'face_on', title: 'Reading body pose on this device (face-on)' },
