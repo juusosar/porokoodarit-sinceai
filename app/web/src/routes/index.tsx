@@ -55,7 +55,7 @@ function Index() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <TakomoLogo className="h-5" />
+        <TakomoLogo className="h-6 shrink-0" />
         <span className="text-xs uppercase tracking-widest text-muted-foreground">Find my fit · 1 / 4</span>
       </header>
       {started ? <Chat initial={fresh ? null : snapshot} /> : <Intro loading={loading} onStart={() => { startNewFitting(); setFresh(true); setStarted(true); }} onResume={!loading && !loadError && snapshot ? () => { setFresh(false); setStarted(true); } : undefined} />}
