@@ -56,7 +56,7 @@ gcloud run services update takomo-api --region europe-north1 \
   --set-secrets TAKOMO_ELEVENLABS_API_KEY=takomo-elevenlabs-key:latest \
   --update-env-vars TAKOMO_TTS_PROVIDER=elevenlabs
 ```
-Turn off: `--update-env-vars TAKOMO_TTS_PROVIDER=none` (API) or `VITE_VOICE=off` / `browser` (web). Check: `GET /v1/settings` → `voice.on`.
+Turn off: `--update-env-vars TAKOMO_TTS_PROVIDER=none` (API) or `VITE_VOICE=off` (web; no browser speech fallback). Check: `GET /v1/settings` → `voice.on`.
 
 ## Vercel (web, current)
 Unchanged: root `app/web`, `VITE_*` set as build env in Vercel.
