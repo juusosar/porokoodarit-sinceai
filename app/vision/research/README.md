@@ -1,7 +1,6 @@
-# research: Katariina's swing processing code (from `main`)
+# research: Katariina's swing processing code (originally on `main`, moved into `app/` 8 Nov)
 
-Desktop batch pipeline the product's swing analysis comes from. **Do not edit these copies here**: change them on
-`main`, then sync (below). App-side fixes go in `app/api/takomo_api/swing/measure.py`.
+Desktop batch pipeline the product's swing analysis comes from. See "Changing the algorithm" below. App-side fixes go in `app/api/takomo_api/swing/measure.py`.
 
 | main path | here | used by the app |
 |---|---|---|
@@ -10,6 +9,7 @@ Desktop batch pipeline the product's swing analysis comes from. **Do not edit th
 | `video_preprocessing.py`, `.ipynb` | `app/vision/research/` | no: desktop batch (cv2 + MediaPipe + YOLO, annotated videos). The device does this part in the browser |
 | `models/pose_landmarker_lite.task`, `models/swingtrace-yolo11m.pt` | `app/vision/research/models/` | export source for the web models |
 | `all_pose_landmarks.csv`, `out/` | `app/vision/research/` | sample output; 3 swings are a test fixture (`app/api/tests/fixtures`) |
+| `ball_line_imgs/` | `app/vision/research/ball_line_imgs/` | ball-line test photos (7 Nov session), reference only |
 
 ## Flow in the app
 device: face-on video -> MediaPipe pose (browser) -> 9 keypoints per frame (numbers)
@@ -20,12 +20,13 @@ device: face-on video -> MediaPipe pose (browser) -> 9 keypoints per frame (numb
 The swing result shows who read it (server / device and why) and what's missing.
 API off / unreachable / no read -> on-device tempo (`app/web/src/lib/pose/tempo.ts`) as before. `VITE_SWING_SERVER=off` skips the API.
 
-## Sync from main
-```bash
-app/vision/sync-main.sh           # copy main's files into place, record the SHA in upstream/UPSTREAM
-cd app/api && pytest -q tests/test_swing.py
-app/vision/sync-main.sh --check   # CI runs this and warns when main has moved on
-```
+## Changing the algorithm
+Until 8 Nov these files lived at the root of `main` and were copied here (source SHA in `upstream/UPSTREAM`).
+Since the dev -> main migration, the copies in this repo layout are the only ones:
+- Algorithm changes: edit `app/api/takomo_api/swing/upstream/*.py` (API) and `app/vision/research/` (desktop).
+- App-only adapters (fps, aspect ratio, gaps, down-the-line): `app/api/takomo_api/swing/measure.py`.
+- Check: `cd app/api && pytest -q tests/test_swing.py`.
+- Ball-line test photos from the 7 Nov session: `ball_line_imgs/`.
 
 ## Run the desktop pipeline
 ```bash

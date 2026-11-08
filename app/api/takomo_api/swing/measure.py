@@ -1,7 +1,7 @@
-"""Run main's swing algorithm (upstream/, verbatim copy) on keypoints from the device.
+"""Run the team's swing algorithm (upstream/, Katariina's research code) on keypoints from the device.
 
-Adapters here fix the upstream assumptions that don't hold for the app, without editing upstream/ (so a sync
-from main stays a plain copy, see app/vision/sync-main.sh):
+Adapters here fix the upstream assumptions that don't hold for the app, so upstream/ stays the research code
+as written (see app/vision/research/README.md):
 
 - fps: upstream preprocessing guesses 240 fps for any file under 100 fps. The device sends the real rate
   (sample rate x slow-mo factor the golfer picked) and real-time timestamps, so 4x slow-mo and normal clips work.

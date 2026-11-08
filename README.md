@@ -71,13 +71,13 @@ Request flow:
 | Swing research | Python, OpenCV, MediaPipe, Ultralytics YOLO | Desktop pipeline the swing algorithm comes from (`app/vision/research`) |
 | LLM | Google Gemini via `google-genai`: flash-lite (chat), flash (step lines), pro (final walkthrough) | Host chat and explanations |
 | LLM auth | Vertex AI keyless via Application Default Credentials; Gemini API key as fallback | No keys in code or browser |
-| Voice | ElevenLabs Flash v2.5 (live); browser speech synthesis as fallback | Host voice |
+| Voice | ElevenLabs Flash v2.5 (live) | Host voice |
 | Shared contract | JSON Schema generated from Pydantic, TS types via `json-schema-to-typescript` | One fit-state schema for API and web |
 | Hosting | Google Cloud Run (europe-north1), Secret Manager, Cloud Logging | API, secrets, logs |
 | Hosting | Vercel | Web |
 | Containers | Docker, docker compose, nginx | Local full stack, any container host |
 | Quality | pytest, ruff, Vitest, Testing Library, ESLint, Prettier | Tests and lint |
-| CI | GitHub Actions | API, web, images, linear history, swing code drift |
+| CI | GitHub Actions | API, web, images, linear history |
 | Evaluation | Synthetic Takomo lab dataset | Accuracy vs today's fitting rules |
 
 In the repo but not used: Modal GPU stub (`app/vision/modal_app.py`). Not built: server-side save (MongoDB Atlas). Replaced: Supabase (Lovable Cloud).
@@ -143,11 +143,10 @@ team's own Python swing algorithm on them.
 Capture: a framing guide is laid over the camera; face-on, whole body and ball in view, 7-iron. Slow-motion clips
 work: the golfer picks the video speed (1x, 4x, 8x) so tempo is in real seconds. Every video step can be skipped.
 
-**One algorithm, synced from its source.** The swing code is a verbatim copy of the research files in
-`app/api/takomo_api/swing/upstream/`; the commit it came from is in `upstream/UPSTREAM`. App-side fixes live only
-in `swing/measure.py` (real fps and slow-mo, real aspect ratio, gap-filled wrists, skip speed without a downswing).
-Its `categorize_*` / `predict_fitting` rules are not used: the engine decides. `app/vision/sync-main.sh` re-syncs
-the copies and CI warns when they drift. Details: [app/vision/research/README.md](app/vision/research/README.md).
+**One algorithm, research code as written.** The swing code is the team's research files, kept unchanged in
+`app/api/takomo_api/swing/upstream/` (desktop pipeline in `app/vision/research/`). App-side fixes live only in
+`swing/measure.py` (real fps and slow-mo, real aspect ratio, gap-filled wrists, skip speed without a downswing).
+Its `categorize_*` / `predict_fitting` rules are not used: the engine decides. Details: [app/vision/research/README.md](app/vision/research/README.md).
 
 Code: device `app/web/src/lib/pose/`, `lib/swing-server.ts`, `lib/swing-dtl.ts`, `hooks/use-swing-upload.ts`;
 API `app/api/takomo_api/swing/`.
@@ -236,7 +235,7 @@ Schema changes: edit `app/api/takomo_api/schema.py`, then `python -m takomo_api.
   `app/deploy/cloudrun.sh`). Config through `TAKOMO_*` env vars (`app/api/.env.example`). Set `TAKOMO_CORS_ORIGINS`
   to the exact web origin. Secrets in Secret Manager (`takomo-elevenlabs-key`, optional Gemini key). Settings are
   read at startup, so redeploy to change them.
-- **Web:** Vercel, root `app/web`. Env: `VITE_API_URL`, `VITE_VOICE`, `VITE_SWING_SERVER`, `VITE_SHOP_URL`.
+- **Web:** Vercel, root `app/web`, production branch `main`. Env: `VITE_API_URL`, `VITE_VOICE`, `VITE_SWING_SERVER`, `VITE_SHOP_URL`.
 - **Any other host:** both images are plain containers on `$PORT`; health checks `GET /health` (API), `GET /` (web).
 
 Step by step: [app/deploy/DEPLOY.md](app/deploy/DEPLOY.md).
@@ -248,7 +247,7 @@ app/
   web/          UI: Vite + React SPA (Lovable design, ported)
   api/          FastAPI: engine, swing analysis, LLM + voice proxy, eval
   shared/       fit_state.schema.json, reason_codes.json, host_lines.json
-  vision/       ONNX export, swing research pipeline (research/), sync-main.sh, unused Modal stub
+  vision/       ONNX export, swing research pipeline + ball-line photos (research/), unused Modal stub
   deploy/       container build + deploy scripts
   docs/         architecture, recommendation engine, data & privacy, eval
   web_legacy/   previous MVP UI, reference only

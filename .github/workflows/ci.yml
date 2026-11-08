@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, dev]
+    branches: [main]
 
 permissions:
   contents: read
@@ -67,22 +67,8 @@ jobs:
         if: failure()
         run: docker logs api; docker logs web
 
-  upstream-drift:
-    # main holds the newest swing algorithm (Katariina). Warn, don't fail, when our copies are behind it.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: swing code in sync with main
-        run: |
-          if ! out=$(app/vision/sync-main.sh --check); then
-            echo "$out"
-            echo "::warning title=main swing code changed::Run app/vision/sync-main.sh (see app/vision/research/README.md)"
-          fi
-
   history:
-    # Rebase-merge keeps every PR commit on dev, so PR commits must be clean.
+    # Rebase-merge keeps every PR commit on main, so PR commits must be clean.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:

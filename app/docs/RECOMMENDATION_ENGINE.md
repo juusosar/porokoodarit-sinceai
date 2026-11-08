@@ -1,6 +1,6 @@
 # Recommendation engine: how inputs become a Takomo iron spec
 
-Status: merged to `dev` 7 Nov 2026 (PR #63, POR-40).
+Status: built (PR #63, POR-40, 7 Nov 2026); on `main` since the 8 Nov migration.
 Plan it implements: https://claude.ai/artifact/PMyyUjJe7h8S9S6aLb5DBQ (7 Nov 2026).
 
 ## 1. Principle
