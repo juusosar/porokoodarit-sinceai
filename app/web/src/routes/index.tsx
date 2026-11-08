@@ -1,4 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useLen } from "@/lib/units";
+import { UnitToggle } from '@/components/UnitToggle';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Check, Star } from "lucide-react";
 import { CARDS, QuickCard, type Answer } from "@/components/QuickCard";
@@ -56,7 +58,7 @@ function Index() {
     <main className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
         <TakomoLogo className="h-6 shrink-0" />
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">Find my fit · 1 / 4</span>
+        <span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><UnitToggle /><span>Find my fit · 1 / 4</span></span>
       </header>
       {started ? <Chat initial={fresh ? null : snapshot} /> : <Intro loading={loading} onStart={() => { startNewFitting(); setFresh(true); setStarted(true); }} onResume={!loading && !loadError && snapshot ? () => { setFresh(false); setStarted(true); } : undefined} />}
     </main>
@@ -105,6 +107,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const profileRef = useRef<Profile>({});
   const getProfile = useCallback(() => profileRef.current, []);
   const { messages, sendMessage, status, error, line } = useHostChat({ messages: initial?.messages ?? [GREETING], profile: getProfile });
+  const L = useLen();
   const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [cardIdx, setCardIdx] = useState(initial?.cardIdx ?? 0);
@@ -207,7 +210,7 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
 
         <div ref={logRef} className="chat-log min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-6">
           {messages.map((m) => {
-            const text = pacing.visibleText(m);
+            const text = L(pacing.visibleText(m));
             const activeReply = m.role === "assistant" && m.id === messages.at(-1)?.id;
             if (!text && !(activeReply && pacing.presenting)) return null;
             const cardMsg = text.match(/^\[(?:Card \d+|Recheck): ([^\]]+)\] (.*)$/); // Recheck: old saved chats

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLen } from '@/lib/units';
 import { Check, ChevronDown, Circle, Lightbulb, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Explanation } from '@/lib/api';
@@ -16,6 +17,7 @@ const SPEC_PARTS = [['shaft', 'Shaft & flex'], ['length', 'Club length'], ['lie'
 /** Engine spec per part, with confidence, evidence and the reasons behind it (POR-18 trust pattern). */
 export function FittingData({ state, explanation, profile, extras, swing }: { state: FitState; explanation: Explanation | null; profile: Profile; extras: Enrichment | null; swing: SwingRecord | null }) {
   const [expanded, setExpanded] = useState(true);
+  const L = useLen();
   const lm = !!extras && !extras.skipped && extras.speed !== null && extras.club === '7-iron';
   const geometry = ['height', 'wrist'].every(key => profile[key]?.status === 'sure' && /\d/.test(profile[key]?.value ?? ''));
   const advice = state.stock_advice;
@@ -25,10 +27,10 @@ export function FittingData({ state, explanation, profile, extras, swing }: { st
       <div className="border-y border-primary/40 bg-primary/5 px-4 py-5"><p className="flex items-center gap-2 font-display text-xl font-bold uppercase italic"><ShieldCheck className="size-5 text-primary" />Evidence, not guesswork.</p><ul className="mt-3 flex flex-wrap gap-x-6 gap-y-3 text-xs text-muted-foreground">{([[swing?.tempo ? 'Swing tempo · measured from video' : 'Swing video not analysed', !!swing?.tempo], [lm ? 'Club speed · launch monitor' : swing?.speed ? 'Club speed · estimated from swing video' : 'Club speed · estimated from carry', lm || !!swing?.speed], [geometry ? 'Height & wrist · user entered' : 'Geometry incomplete', geometry]] as const).map(([label, present]) => <li key={label} className="flex items-center gap-2">{present ? <Check className="size-4 text-primary" /> : <Circle className="size-3" />}{label}</li>)}</ul></div>
       <NextSteps state={state} />
       {SPEC_PARTS.map(([key, title], i) => { const part = state.parts[key]; return part ? <PartRow key={key} number={String(i + 1).padStart(2, '0')} title={title} part={part} note={explanation?.source === 'llm' ? explanation.parts[key] : undefined} advice={advice} /> : null; })}
-      {advice && advice.blockers && advice.blockers.length > 0 && <div data-scroll-reveal className="border-b border-border py-6"><h3 className="text-xs font-medium uppercase tracking-widest">Why custom</h3><ul className="mt-3 space-y-2 text-sm text-muted-foreground">{advice.blockers.map(b => <li key={b.part}>{b.part}: {b.custom_value} (stock {b.stock_value}). {renderReason({ code: b.impact_code, params: b.params ?? {} })}</li>)}</ul>{advice.one_tweak_from_stock && <p className="mt-3 text-sm">One tweak away from stock: faster delivery and 30-day returns if you accept it.</p>}</div>}
-      {state.warnings && state.warnings.length > 0 && <ul className="mt-6 space-y-2 border-l-2 border-primary pl-4 text-sm">{state.warnings.map(w => <li key={w.code}>{renderReason(w)}</li>)}</ul>}
-      <details data-scroll-reveal className="mt-8 border-y border-border py-5"><summary className="cursor-pointer font-display text-xl font-bold uppercase italic">Your profile & source data</summary><dl className="mt-5 grid gap-4 sm:grid-cols-2">{Object.entries(profile).map(([key, answer]) => <div key={key}><dt className="text-xs uppercase text-muted-foreground">{key === 'development' ? 'Future outlook' : key}</dt><dd className="mt-1 break-words">{swingProfileValue(key, answer, swing) ?? `${answer.value}${answer.status === 'guess' ? ' · Estimate' : ''}`}</dd></div>)}</dl>
-        {swing?.tempo && <><h3 className="mt-6 font-medium">Swing video</h3><p className="mt-2 text-sm text-muted-foreground">{swingSummaryLine(swing)}. {swing.source === 'server' ? 'Read from body keypoints by our server' : 'Measured on this device'}; the video was not uploaded. Values marked “to fit” go into the fitting engine.</p><SwingDataList record={swing} className="mt-4" /></>}
+      {advice && advice.blockers && advice.blockers.length > 0 && <div data-scroll-reveal className="border-b border-border py-6"><h3 className="text-xs font-medium uppercase tracking-widest">Why custom</h3><ul className="mt-3 space-y-2 text-sm text-muted-foreground">{advice.blockers.map(b => <li key={b.part}>{b.part}: {L(b.custom_value)} (stock {L(b.stock_value)}). {L(renderReason({ code: b.impact_code, params: b.params ?? {} }))}</li>)}</ul>{advice.one_tweak_from_stock && <p className="mt-3 text-sm">One tweak away from stock: faster delivery and 30-day returns if you accept it.</p>}</div>}
+      {state.warnings && state.warnings.length > 0 && <ul className="mt-6 space-y-2 border-l-2 border-primary pl-4 text-sm">{state.warnings.map(w => <li key={w.code}>{L(renderReason(w))}</li>)}</ul>}
+      <details data-scroll-reveal className="mt-8 border-y border-border py-5"><summary className="cursor-pointer font-display text-xl font-bold uppercase italic">Your profile & source data</summary><dl className="mt-5 grid gap-4 sm:grid-cols-2">{Object.entries(profile).map(([key, answer]) => <div key={key}><dt className="text-xs uppercase text-muted-foreground">{key === 'development' ? 'Future outlook' : key}</dt><dd className="mt-1 break-words">{L(swingProfileValue(key, answer, swing) ?? `${answer.value}${answer.status === 'guess' ? ' · Estimate' : ''}`)}</dd></div>)}</dl>
+        {swing?.tempo && <><h3 className="mt-6 font-medium">Swing video</h3><p className="mt-2 text-sm text-muted-foreground">{L(swingSummaryLine(swing))}. {swing.source === 'server' ? 'Read from body keypoints by our server' : 'Measured on this device'}; the video was not uploaded. Values marked “to fit” go into the fitting engine.</p><SwingDataList record={swing} className="mt-4" /></>}
         <h3 className="mt-6 font-medium">Extra data</h3>{extras && !extras.skipped ? <><p className="mt-2 text-sm text-muted-foreground">{extras.club} · Self-reported session numbers</p><dl className="mt-3 grid gap-4 sm:grid-cols-2">{([['Clubhead speed', extras.speed, 'mph'], ['Carry distance', extras.carry, extras.unit], ['Launch angle', extras.launch, '°'], ['Spin rate', extras.spin, 'rpm'], ['Landing angle', extras.landing ?? null, '°']] as const).map(([label, value, unit]) => value !== null && <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd>{Number(value.toFixed(2))} {unit}</dd></div>)}</dl>{extras.impactEnabled && extras.impact && <p className="mt-4">Strike observation: {extras.impact} · No automatic lie change</p>}{(extras.ballLine ?? []).length > 0 && <p className="mt-4">Ball-line test: {extras.ballLine.length} shot{extras.ballLine.length > 1 ? 's' : ''}, average {(extras.ballLine.reduce((a, b) => a + b, 0) / extras.ballLine.length).toFixed(1)}° (+ = toward the toe). Photos stayed on this device.</p>}</> : <p className="mt-2 text-muted-foreground">{extras?.skipped ? 'Optional extra data skipped.' : 'No extra data has been saved yet.'}</p>}</details>
       <p className="mt-7 flex items-start gap-3 text-sm text-muted-foreground"><ShieldCheck className="size-5 shrink-0 text-primary" />Specs come from Takomo’s fitting rules applied to your evidence. Saved only on this device.</p>
     </div>
@@ -43,13 +45,14 @@ function purchaseVerdict(advice: StockAdvice | null | undefined): string {
 
 function PartRow({ number, title, part, note, advice }: { number: string; title: string; part: PartState; note: string | undefined; advice: StockAdvice | null | undefined }) {
   const { pct, word } = confidenceView(part.confidence);
-  const reasons = (part.reasons ?? []).map(renderReason);
+  const L = useLen();
+  const reasons = (part.reasons ?? []).map(r => L(renderReason(r)));
   return <div data-scroll-reveal className="border-b border-border py-7">
     <div className="flex flex-wrap items-center gap-3"><span className="font-display text-2xl italic text-primary">{number}</span><h3 className="text-xs font-medium uppercase tracking-widest">{title}</h3><span className="ml-auto flex flex-wrap gap-1.5 text-xs text-muted-foreground">{(part.evidence ?? []).map(e => <span key={e} className="border border-border px-2 py-0.5">{EVIDENCE_LABEL[e]}</span>)}</span></div>
-    <p className="mt-4 font-display text-3xl font-bold uppercase italic">{part.label}</p>
+    <p className="mt-4 font-display text-3xl font-bold uppercase italic">{L(part.label)}</p>
     {part.part === 'purchase' ? <p className="mt-3 text-sm text-primary">{purchaseVerdict(advice)}</p> : <div className="mt-3 flex items-center gap-3" aria-label={`${word}, ${pct}%`}><div className="h-1 w-40 bg-muted" aria-hidden="true"><div className="h-1 bg-primary" style={{ width: `${pct}%` }} /></div><span className="text-xs text-muted-foreground">{word} · {pct}%</span></div>}
-    {part.close_call && <p className="mt-3 text-sm">Close call: {part.close_call.alternative} is nearly as good a fit.</p>}
-    {note && <p className="mt-3 max-w-2xl text-sm">{note}</p>}
+    {part.close_call && <p className="mt-3 text-sm">Close call: {L(part.close_call.alternative)} is nearly as good a fit.</p>}
+    {note && <p className="mt-3 max-w-2xl text-sm">{L(note)}</p>}
     {reasons.length > 0 && <ul className="mt-3 max-w-2xl list-disc space-y-1 pl-5 text-sm text-muted-foreground">{reasons.map(r => <li key={r}>{r}</li>)}</ul>}
     <WhyDrawer part={part} />
   </div>;
@@ -58,13 +61,14 @@ function PartRow({ number, title, part, note, advice }: { number: string; title:
 /** Evidence chain behind one part: each input, where it came from and how much it counted. */
 export function WhyDrawer({ part }: { part: PartState }) {
   const inputs = part.inputs ?? [];
+  const L = useLen();
   if (!inputs.length) return null;
   return <details className="mt-3 max-w-2xl text-sm" data-testid={`why-${part.part}`}>
     <summary className="cursor-pointer text-primary">Why? What this is based on</summary>
     <ul className="mt-3 space-y-2">{inputs.map((i, n) => {
       const pct = Math.round(i.weight * 100);
       return <li key={n} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
-        <span>{i.label} <span className="text-muted-foreground">· {i.value}</span> <span className="border border-border px-1.5 py-px text-[10px] uppercase text-muted-foreground">{EVIDENCE_LABEL[i.source]}</span></span>
+        <span>{i.label} <span className="text-muted-foreground">· {L(String(i.value))}</span> <span className="border border-border px-1.5 py-px text-[10px] uppercase text-muted-foreground">{EVIDENCE_LABEL[i.source]}</span></span>
         <span className="text-xs tabular-nums text-muted-foreground">{i.weight >= 1 ? 'used' : `${pct}%`}</span>
         <span className="col-span-2 h-1 bg-muted" aria-hidden><span className="block h-1 bg-primary" style={{ width: `${pct}%` }} /></span>
       </li>;

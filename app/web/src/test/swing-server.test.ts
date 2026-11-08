@@ -47,7 +47,7 @@ describe('reading source + down-the-line samples', () => {
   it('says who read the swing and why the device was used', async () => {
     const { readingSource } = await import('@/lib/swing-server');
     expect(readingSource({ source: 'server', algorithm: 'main@7234843', notes: ['height_default'] })).toEqual({
-      title: 'Read by our server from body keypoints (main@7234843)', detail: ['no height given, so speed is less certain'],
+      title: 'Read by our server from body keypoints', detail: ['no height given, so speed is less certain'],
     });
     expect(readingSource({ source: 'device', fallback: 'unreachable' }).title).toBe('Read on this device (server not reachable)');
   });
@@ -71,7 +71,7 @@ describe('every video data point shown', () => {
   it('lists each step with its numbers and marks what the engine gets', async () => {
     const { swingDataSteps, swingSummaryLine } = await import('@/lib/swing-data');
     const steps = swingDataSteps(rec);
-    expect(steps.map(s => s.title)).toEqual(['Body pose read on this device', 'Swing phases (main’s algorithm)', 'Timing', 'Down-the-line view', 'Speed estimate (double pendulum)', 'Notes']);
+    expect(steps.map(s => s.title)).toEqual(['Body pose read on this device', 'Swing phases (server)', 'Timing', 'Down-the-line view', 'Speed estimate (double pendulum)', 'Notes']);
     expect(steps[1].points.map(p => p.label)).toEqual(['Address', 'Toe up', 'Top', 'Impact']);
     const all = steps.flatMap(s => s.points);
     expect(all.filter(p => p.engine).map(p => p.label)).toEqual(['Backswing', 'Downswing', 'Club speed (estimate)']);
