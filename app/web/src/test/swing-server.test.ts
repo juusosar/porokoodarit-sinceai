@@ -81,3 +81,15 @@ describe('every video data point shown', () => {
     expect(swingDataSteps(null)).toEqual([]);
   });
 });
+
+describe('profile summary rows from the video', () => {
+  const rec = { filename: 's.mp4', size: 1, encodedFps: 30, analyzedAt: '2026-11-08T03:00:00Z', source: 'server' as const,
+    tempo: { backswingS: 0.9, downswingS: 0.3, ratio: 3, sd: 0.016 }, speed: { value: 78.4, sd: 12 } };
+  it('tempo shows timing only; speed shows the estimate unless the golfer gave one', async () => {
+    const { swingProfileValue } = await import('@/lib/swing-data');
+    expect(swingProfileValue('tempo', { value: 'From swing video', status: 'guess' }, rec)).toBe('backswing 0.90 s · downswing 0.30 s · 3.0:1 · measured from video');
+    expect(swingProfileValue('speed', { value: 'Not sure', status: 'guess' }, rec)).toBe('about 78 mph ± 12 · estimated from swing video');
+    expect(swingProfileValue('speed', { value: '82 mph', status: 'sure' }, rec)).toBeNull();
+    expect(swingProfileValue('height', { value: '180 cm', status: 'sure' }, rec)).toBeNull();
+  });
+});
