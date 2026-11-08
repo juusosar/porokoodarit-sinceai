@@ -11,6 +11,7 @@ import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
 import { FIX_TEXT, confirmPending, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
 import { useSpeakLine, VoiceToggle } from "@/features/voice";
+import { HostMark } from '@/components/HostMark';
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,9 +26,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Index,
 });
-
-const HOST_PHOTO = "/images/host.jpg";
-const HOST_AVATAR = "/images/host-avatar.png";
 
 const FIELDS: { key: string; label: string }[] = [
   { key: "hand", label: "Hand" },
@@ -70,7 +68,7 @@ function Intro({ onStart, onResume, loading }: { onStart: () => void; onResume?:
     <section className="relative mx-auto grid max-w-6xl items-center gap-10 px-6 py-12 md:grid-cols-2 md:py-20">
       <div className="pointer-events-none absolute inset-0 bg-glow" />
       <div className="relative aspect-square overflow-hidden">
-        <img src={HOST_PHOTO} alt="Gront Harvot" className="h-full w-full object-cover" />
+        <HostMark className="h-full w-full" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-background/80 px-3 py-2 text-xs uppercase tracking-widest backdrop-blur">
           <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Gront is online
@@ -294,7 +292,7 @@ function Avatar({ speaking, small }: { speaking?: boolean; small?: boolean }) {
   return (
     <div className="relative shrink-0">
       {speaking && <span className="absolute -inset-1 animate-pulse rounded-full border border-primary/50" />}
-      <img src={HOST_AVATAR} alt="Gront" className={`relative ${size} rounded-full border-2 border-primary object-cover`} />
+      <HostMark className={`relative ${size} rounded-full border-2 border-primary`} />
     </div>
   );
 }
