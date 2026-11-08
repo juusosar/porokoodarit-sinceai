@@ -9,7 +9,7 @@ export function HearItButton({
   line: Line;
   className?: string;
 }) {
-  if (voiceMode() === "off") return null;
+  if (voiceMode() === "off" || !line.token) return null; // nothing to play without the server voice
   return (
     <button
       type="button"

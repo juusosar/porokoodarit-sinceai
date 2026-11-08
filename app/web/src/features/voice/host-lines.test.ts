@@ -26,7 +26,7 @@ describe("fixed host lines", () => {
     expect(fetch).toHaveBeenCalledWith("https://api.test/v1/voice/lines");
   });
 
-  it("no server voice = no tokens (silent, Hear it still works in the browser voice)", async () => {
+  it("no server voice = no tokens (silent, no Hear it)", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("", { status: 404 }))));
     const { loadTokens } = await import("./host-lines");
     expect(await loadTokens()).toEqual({});
