@@ -21,6 +21,6 @@ export function TakomoLogo({ variant = 'wordmark', className = '', label = 'Tako
 /** Host picture: Takomo logo on a dark tile instead of a real person's photo (Gront Harvot is a made-up host). */
 export function HostMark({ className = '', label = 'Takomo logo' }: { className?: string; label?: string }) {
   return <div role="img" aria-label={label} className={`flex items-center justify-center overflow-hidden bg-[#0b0b0b] text-white ${className}`}>
-    <TakomoLogo variant="full" label="" className="h-[62%] max-w-[78%]" />
+    <TakomoLogo variant="full" label="" className="h-[55%] max-h-56 max-w-[78%]" />
   </div>;
 }
