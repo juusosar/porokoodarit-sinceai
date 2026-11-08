@@ -12,7 +12,7 @@ export const PARTS = [
 
 export const EVIDENCE_LABEL: Record<EvidenceSource, string> = {
   measured: "measured",
-  asked: "you said",
+  asked: "user entered",
   estimated: "estimated",
   default: "typical",
 };
