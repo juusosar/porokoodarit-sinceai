@@ -75,6 +75,8 @@ export const NOTE_TEXT: Record<string, string> = {
   dtl_shaft_implausible: "club length from the down-the-line clip looked off",
   dtl_body_not_visible: "body not visible in the down-the-line clip",
   dtl_unreadable: "down-the-line clip could not be read on this device",
+  dtl_needs_slow_motion: "down-the-line clip skipped: club length is only used with a slow-motion clip",
+  dtl_rejected: "down-the-line clip couldn't be used",
 };
 
 /** One line for the result: who read the swing and what is missing. */

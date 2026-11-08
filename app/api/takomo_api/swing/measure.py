@@ -97,7 +97,9 @@ def _shaft_length(dtl: DtlClip, height_m: float, notes: list[str]) -> float | No
         ph = KinematicPhaseDetector().detect_phases_from_dataframe(_wrists(df), fps=p.fps)
         addr = int(ph["event_frames"]["Address"])
     except Exception:
-        addr = 30  # upstream default when no address is known
+        addr = 0
+    if addr < 5:  # no clear takeaway found (Address 0): use upstream's default address frame
+        addr = 30
     cutoff = min(addr, STATIC_FRAMES_MAX)
     hx, hy = _col(dtl.club_head.x), _col(dtl.club_head.y)
     wx = (df["landmark_15_x"] + df["landmark_16_x"]).to_numpy() / 2
