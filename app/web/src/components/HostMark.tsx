@@ -1,11 +1,26 @@
+import type { CSSProperties } from 'react';
+
+const LOGOS = {
+  /** Mark + TAKOMO, stacked (320x266). */
+  full: { src: '/brand/takomo-logo.png', ratio: 320 / 266 },
+  /** TAKOMO letters only (320x47). */
+  wordmark: { src: '/brand/takomo-wordmark.png', ratio: 320 / 47 },
+} as const;
+
 /**
- * Host picture: Takomo wordmark tile instead of a real person's photo (Gront Harvot is a made-up host).
- * Drawn as one SVG so it scales from chat avatar to intro hero. Swap for the official logo file when we have it.
+ * Official Takomo logo as a CSS mask, so it takes the text colour (currentColor) on any theme.
+ * Size it with a height class; width follows the logo's aspect ratio.
  */
+export function TakomoLogo({ variant = 'wordmark', className = '', label = 'Takomo' }: { variant?: keyof typeof LOGOS; className?: string; label?: string }) {
+  const { src, ratio } = LOGOS[variant];
+  const mask = `url(${src}) center / contain no-repeat`;
+  const style: CSSProperties = { aspectRatio: ratio, WebkitMask: mask, mask };
+  return <span {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })} className={`inline-block bg-current ${className}`} style={style} />;
+}
+
+/** Host picture: Takomo logo on a dark tile instead of a real person's photo (Gront Harvot is a made-up host). */
 export function HostMark({ className = '', label = 'Takomo logo' }: { className?: string; label?: string }) {
-  return <svg role="img" aria-label={label} viewBox="0 0 100 100" className={className} preserveAspectRatio="xMidYMid slice">
-    <rect width={100} height={100} fill="#0b0b0b" />
-    <text x={50} y={56} textAnchor="middle" className="font-display" fontSize={26} fontWeight={700} fontStyle="italic" letterSpacing={0.5} textLength={68} lengthAdjust="spacingAndGlyphs" fill="#ffffff">TAKOMO</text>
-    <rect x={22} y={63} width={56} height={4} fill="#FF6E01" />
-  </svg>;
+  return <div role="img" aria-label={label} className={`flex items-center justify-center overflow-hidden bg-[#0b0b0b] text-white ${className}`}>
+    <TakomoLogo variant="full" label="" className="h-[62%] max-w-[78%]" />
+  </div>;
 }
