@@ -1,7 +1,7 @@
 """Export the club detector for in-browser use (onnxruntime-web, WebGPU).
 
     pip install ultralytics onnx onnxslim onnxconverter-common onnxruntime
-    python app/vision/export_onnx.py swingtrace-yolo11m.pt app/web/public/models/swingtrace-yolo11m-fp16.onnx
+    python app/vision/export_onnx.py app/vision/research/models/swingtrace-yolo11m.pt app/web/public/models/swingtrace-yolo11m-fp16.onnx
 
 640x640 static input, opset 17, FP16 weights with float32 input/output (keep_io_types). Checks the FP16 model against
 FP32 on a random input. value_info is cleared around the FP16 pass: stale shape info breaks the Resize casts.
