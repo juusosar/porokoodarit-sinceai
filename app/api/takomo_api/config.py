@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     chat_rate_per_min: int = 120
     max_body_bytes: int = 64_000
     # /v1/swing/analyze: pose keypoints of one clip (~600 samples x 9 landmarks), no video.
-    swing_rate_per_min: int = 20
+    swing_rate_per_min: int = 60  # one call per video; a demo venue shares one IP
     swing_max_body_bytes: int = 600_000
 
     @property
