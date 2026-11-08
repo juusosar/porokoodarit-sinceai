@@ -28,7 +28,7 @@ class _Model(BaseModel):
 # ------------------------------------------------------------------ enums
 class EvidenceSource(StrEnum):
     asked = "asked"  # golfer told us (questionnaire)
-    measured = "measured"  # phone photo/video, launch monitor, ball-line test
+    measured = "measured"  # device photo/video, launch monitor, ball-line test
     estimated = "estimated"  # derived/inferred (e.g. carry -> speed, category prior)
     default = "default"  # nothing known yet, population default
 
@@ -82,7 +82,7 @@ class Answers(_Model):
 
 
 class Measurements(_Model):
-    """Values measured on the phone / launch monitor. Keys follow lab phone_measurements.csv."""
+    """Values measured on the device / launch monitor. Keys follow lab phone_measurements.csv."""
 
     height_cm: Observation | None = None
     wrist_to_floor_cm: Observation | None = None
