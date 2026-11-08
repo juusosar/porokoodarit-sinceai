@@ -335,3 +335,20 @@ def test_template_question_after_summary_has_no_confirm():
         assert CH.CONFIRM not in r.reply and r.reply == CH.SCRIPTED["question"]
     finally:
         registry.reset()
+
+
+def test_echoed_known_field_is_not_a_new_value(fake):
+    fake({"reply": f"Righty all the way. {CH.CONFIRM}", "profile": {"hand": {"value": "Right", "status": "sure"}}})
+    r = CH.chat(after_summary("Which hand did I say?"))
+    assert CH.CONFIRM.lower() not in r.reply.lower()
+
+
+@pytest.mark.parametrize("ending", ["Does that sound right?", "Is that right?"])
+def test_confirm_variants_dropped_from_answers(fake, ending):
+    fake({"reply": f"Lie is the sole angle. {ending}", "profile": {}})
+    assert CH.chat(after_summary("What is lie?")).reply == "Lie is the sole angle."
+
+
+@pytest.mark.parametrize("text", ["Can't remember, maybe 140", "Carry 150 actually", "Left-handed, sorry"])
+def test_values_are_not_questions(text):
+    assert not CH._is_question(text)
