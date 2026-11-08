@@ -72,23 +72,24 @@ describe("voice player", () => {
     expect(spoken).toEqual([]);
   });
 
-  it("is silent without a token unless asked, and falls back on audio error", async () => {
+  it("never uses browser speech: silent without a token (even forced) and on audio error", async () => {
     const p = await load();
     p.speak({ text: "No token" });
-    expect(audios.length + spoken.length).toBe(0);
     p.speak({ text: "No token" }, true);
-    expect(spoken).toEqual(["No token"]);
+    expect(audios.length + spoken.length).toBe(0);
     p.speak({ text: "Server down", token: "t" });
     expect(audios[0].preload).toBe("none");
     audios[0].fire("error");
-    expect(spoken).toEqual(["No token", "Server down"]);
+    await new Promise((r) => setTimeout(r));
+    expect(spoken).toEqual([]);
   });
 
-  it("does not repeat a line in the browser voice once audio started", async () => {
+  it("silent when the server audio cannot play", async () => {
     const p = await load();
-    p.speak({ text: "Cut off", token: "t" });
-    audios[0].fire("playing");
-    audios[0].fire("error");
+    p.speak({ text: "Fails", token: "t" });
+    audios[0].play.mockReturnValueOnce(Promise.reject(new Error("network")));
+    p.speak({ text: "Fails2", token: "t" });
+    await new Promise((r) => setTimeout(r));
     expect(spoken).toEqual([]);
   });
 
@@ -106,7 +107,7 @@ describe("voice player", () => {
     expect(audios).toHaveLength(1);
     expect(audios[0].src).toMatch(/^data:audio\/wav/);
     expect(audios[0].play).toHaveBeenCalled();
-    expect(spoken).toEqual([""]);
+    expect(spoken).toEqual([]);
   });
 
   it("a line blocked before any tap plays on the first tap; failed unlock retries", async () => {
@@ -144,7 +145,7 @@ describe("voice player", () => {
     expect(again.isMuted()).toBe(true);
   });
 
-  it("VITE_VOICE=off silences everything, =browser skips the API", async () => {
+  it("VITE_VOICE=off silences everything; old =browser now means server voice", async () => {
     window.__TAKOMO_ENV__ = { VITE_VOICE: "off" };
     let p = await load();
     p.speak({ text: "x", token: "t" }, true);
@@ -153,7 +154,7 @@ describe("voice player", () => {
     vi.resetModules();
     p = await load();
     p.speak({ text: "y", token: "t" });
-    expect(audios).toHaveLength(0);
-    expect(spoken).toEqual(["y"]);
+    expect(audios).toHaveLength(1);
+    expect(spoken).toEqual([]);
   });
 });
