@@ -58,7 +58,7 @@ function EnrichmentPage() {
     setForm(v => ({ ...v, unit }));
   }
   return <main className="enrichment-theme min-h-screen bg-background font-sans text-foreground">
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-6 py-4"><TakomoLogo className="h-5" /><span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><VoiceToggle /><span>Find my fit · <span className="text-primary">Step 3 / 4</span></span></span></header>
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-6 py-4"><TakomoLogo className="h-6 shrink-0" /><span className="flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground"><VoiceToggle /><span>Find my fit · <span className="text-primary">Step 3 / 4</span></span></span></header>
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8 md:py-12">
       <div className="flex items-center gap-5"><HostMark className="size-20 shrink-0 border border-primary" /><div><p className="mb-2 text-xs uppercase tracking-widest text-primary">Gront · AI-assisted fitting</p><p className="text-lg leading-relaxed">{hostMain}</p><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{hostMore}</p><HearItButton line={hostLine} className="mt-1 text-xs text-primary underline" /></div></div>
       <div className="mb-8 mt-9"><p className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">A little extra, never required</p><h1 className="font-display text-5xl font-bold uppercase italic leading-none md:text-6xl">Your numbers.<br /><span className="text-primary">Less guesswork.</span></h1></div>
