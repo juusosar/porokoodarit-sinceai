@@ -246,6 +246,7 @@ export interface Measurements {
   lie_need_deg?: Observation | null;
   speed_7i_mph?: Observation | null;
   spin_rpm?: Observation | null;
+  video_speed_7i_mph?: Observation | null;
   wrist_to_floor_cm?: Observation | null;
 }
 /**
