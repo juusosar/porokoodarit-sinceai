@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # Host chat: ~8 turns per fitting; a demo venue shares one IP, so allow more.
     chat_rate_per_min: int = 120
     max_body_bytes: int = 64_000
+    # /v1/swing/analyze: pose keypoints of one clip (~600 samples x 9 landmarks), no video.
+    swing_rate_per_min: int = 20
+    swing_max_body_bytes: int = 600_000
 
     @property
     def llm_thinking_level(self) -> str:

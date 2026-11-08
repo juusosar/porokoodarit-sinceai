@@ -646,6 +646,17 @@
           ],
           "default": null
         },
+        "video_speed_7i_mph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Observation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "wrist_to_floor_cm": {
           "anyOf": [
             {

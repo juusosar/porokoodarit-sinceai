@@ -158,6 +158,10 @@
       "part": "shaft",
       "text": "Speed estimated from your typical score. A launch monitor or carry number would firm it up."
     },
+    "SPEED_FROM_VIDEO": {
+      "part": "shaft",
+      "text": "Speed estimated from your swing video. A launch monitor would firm it up."
+    },
     "FLIGHT_FROM_LAUNCH": {
       "part": "shaft",
       "text": "Your launch monitor numbers say you need a {flight} ball flight."

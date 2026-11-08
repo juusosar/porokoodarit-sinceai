@@ -21,7 +21,7 @@ Plan it implements: https://claude.ai/artifact/PMyyUjJe7h8S9S6aLb5DBQ (7 Nov 202
 | Input | Where it comes from | Enters the engine as | Notes |
 |---|---|---|---|
 | Profile (hand, sex, score, carry, flight, height, wrist-to-floor, glove, wants) | Chat cards (`/v1/chat`), `lib/fit-request.ts` | `Answers` | Bias and SD from the lab self-report error model |
-| Swing video tempo | On-device pose (`lib/swing/pipeline.ts`) | `backswing_s`, `downswing_s` | Video never leaves the phone |
+| Swing video tempo + speed | Device pose keypoints -> API `/v1/swing/analyze` (main's algorithm, `takomo_api/swing`); on-device tempo (`lib/pose/tempo.ts`) as fallback | `backswing_s`, `downswing_s`, `video_speed_7i_mph` (estimated, SD 12 mph, only from >= 100 fps real-time clips) | Video never leaves the device; keypoints are not stored |
 | Launch monitor / TrackMan (7-iron, session means) | Extra-data step, manual entry | `speed_7i_mph`, **`carry_7i_yd`**, **`launch_deg`**, **`spin_rpm`**, **`landing_deg`** | Bold = new on this branch |
 | Ball-line lie test | Extra-data step: face photo, 4 taps per shot (`components/BallLineTest.tsx`) | **`ball_line_tilt_deg`** (mean of shots, SD 1.65/√n) | Photo stays on the phone; only angles are saved |
 | Lie from strike / toe-up (fitting session) | Eval only today | `lie_need_deg` | Beats the ball-line test when both exist |
@@ -37,6 +37,7 @@ All sources go into one inverse-variance estimate. The typical weights, stronges
 | Launch monitor / TrackMan speed | 1.5 mph | `launch_monitor` |
 | Launch monitor carry → speed (no over-report correction) | ≥ 3 mph | `launch_monitor_carry` |
 | Asked speed (−2 mph bias) | 5 mph | `questionnaire` |
+| Swing video speed (main's pendulum model, not yet validated vs TrackMan) | 12 mph (+5 % without height) | `video_pendulum` |
 | Remembered carry → speed (−15 yd over-report, loft corrected) | ≥ 3 mph, usually ~5–6 | `carry_loft_corrected` |
 | **New:** typical score → speed prior (84 / 79 / 76 / 72 / 67 mph for buckets 1–5) | 12 mph | `score_prior` |
 | Population prior | 10 mph | `population_prior` |

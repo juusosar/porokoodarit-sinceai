@@ -117,8 +117,13 @@ export function toFitRequest(
   }
   if (swing?.tempo) {
     const { backswingS, downswingS, sd } = swing.tempo;
-    measurements.backswing_s = { value: backswingS, sd, source: "measured", method: "video_pose" };
-    measurements.downswing_s = { value: downswingS, sd, source: "measured", method: "video_pose" };
+    const method = swing.source === "server" ? "video_pose_server" : "video_pose";
+    measurements.backswing_s = { value: backswingS, sd, source: "measured", method };
+    measurements.downswing_s = { value: downswingS, sd, source: "measured", method };
+  }
+  if (swing?.speed) {
+    // An estimate from hand travel (API, main's model), kept apart from a launch-monitor speed: the engine weighs both.
+    measurements.video_speed_7i_mph = { value: swing.speed.value, sd: swing.speed.sd, source: "estimated", method: "video_pendulum" };
   }
   for (const k of Object.keys(answers) as (keyof Answers)[]) if (answers[k] === null) delete answers[k];
   return { step, answers, measurements };
