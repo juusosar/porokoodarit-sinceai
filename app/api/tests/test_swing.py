@@ -212,3 +212,16 @@ def test_real_clips_match_upstream_called_directly(name):
     assert r.backswing_s.value == direct["backswing_s"] and r.downswing_s.value == direct["downswing_s"]
     assert r.events_ms == {k: float(v) for k, v in direct["event_timestamps_ms"].items()}
     assert 0.5 < r.backswing_s.value < 1.2 and 0.2 < r.downswing_s.value < 0.4
+
+
+def test_dropped_frame_at_top_keeps_speed():
+    body = payload()
+    full = run().video_speed_7i_mph.value
+    top = int(TOP * 240)
+    for k in ("15", "16"):
+        tr = body["pose"]["landmarks"][k]
+        for i in range(top - 2, top + 3):
+            tr["x"][i] = tr["y"][i] = tr["v"][i] = None
+    r = measure.analyze(SwingAnalyzeRequest.model_validate(body))
+    assert r.video_speed_7i_mph is not None
+    assert r.video_speed_7i_mph.value == pytest.approx(full, rel=0.05)
