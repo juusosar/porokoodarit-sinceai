@@ -225,3 +225,45 @@ def test_dropped_frame_at_top_keeps_speed():
     r = measure.analyze(SwingAnalyzeRequest.model_validate(body))
     assert r.video_speed_7i_mph is not None
     assert r.video_speed_7i_mph.value == pytest.approx(full, rel=0.05)
+
+
+def dtl_clip(fps: float = 240.0, head: bool = True) -> dict:
+    """Down-the-line clip of the same swing: club head seen at address only, shoulders open up mid-swing."""
+    clip = payload(fps=fps)["pose"]
+    n = len(clip["t_ms"])
+    sh_l, sh_r = clip["landmarks"]["11"], clip["landmarks"]["12"]
+    sh_l["x"], sh_r["x"] = [0.47] * n, [0.53] * n
+    turn = int(1.6 * fps)
+    sh_l["x"][turn], sh_r["x"][turn] = 0.4075, 0.5925  # widest: 200 px at 1080 wide
+    wx = (clip["landmarks"]["15"]["x"][0] + clip["landmarks"]["16"]["x"][0]) / 2  # 0.50
+    wy = clip["landmarks"]["15"]["y"][0]  # 0.62
+    still = int(0.15 * fps)
+    # head 590 px from the hands (dx 130 px, dy 576 px in 1080 x 1920) -> 590 * 0.16 * 1.8 / 200 = 0.85 m
+    hx = [wx + 130 / 1080 if head and i < still else None for i in range(n)]
+    hy = [wy + 576 / 1920 if head and i < still else None for i in range(n)]
+    return {"pose": clip, "club_head": {"x": hx, "y": hy}}
+
+
+def test_dtl_clip_measures_shaft_and_feeds_speed():
+    without = run()
+    body = payload() | {"dtl": dtl_clip()}
+    r = measure.analyze(SwingAnalyzeRequest.model_validate(body))
+    assert r.shaft_length_m is not None and r.shaft_length_m.method == "video_dtl_shaft"
+    assert r.shaft_length_m.value == pytest.approx(0.85, abs=0.02)
+    # shorter shaft than the 0.90 m default -> a little less club-head speed for the same hands
+    assert r.video_speed_7i_mph.value < without.video_speed_7i_mph.value
+    assert r.backswing_s.value == without.backswing_s.value  # tempo stays from the face-on clip
+
+
+def test_dtl_without_club_head_keeps_default_shaft():
+    body = payload() | {"dtl": dtl_clip(head=False)}
+    r = measure.analyze(SwingAnalyzeRequest.model_validate(body))
+    assert r.shaft_length_m is None and "dtl_no_club_head" in r.notes
+    assert r.video_speed_7i_mph.value == run().video_speed_7i_mph.value
+
+
+def test_dtl_validation():
+    bad = dtl_clip()
+    bad["club_head"]["x"].pop()
+    with pytest.raises(ValueError):
+        SwingAnalyzeRequest.model_validate(payload() | {"dtl": bad})
