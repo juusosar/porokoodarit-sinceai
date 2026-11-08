@@ -11,7 +11,7 @@ import type { FittingSnapshot, Profile, UIMessage } from "@/lib/fitting-schema";
 import { FIX_TEXT, confirmPending, useHostChat } from "@/hooks/use-host-chat";
 import { useChatPacing } from "@/hooks/use-chat-pacing";
 import { hostText, preloadHostLines, useHostLine, useSpeakLine, VoiceToggle } from "@/features/voice";
-import { HostMark } from "@/components/HostMark";
+import { HostMark, TakomoLogo } from "@/components/HostMark";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -55,7 +55,7 @@ function Index() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <span className="font-display text-2xl font-bold italic tracking-wide">TAKOMO</span>
+        <TakomoLogo className="h-5" />
         <span className="text-xs uppercase tracking-widest text-muted-foreground">Find my fit · 1 / 4</span>
       </header>
       {started ? <Chat initial={fresh ? null : snapshot} /> : <Intro loading={loading} onStart={() => { startNewFitting(); setFresh(true); setStarted(true); }} onResume={!loading && !loadError && snapshot ? () => { setFresh(false); setStarted(true); } : undefined} />}
