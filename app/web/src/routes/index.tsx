@@ -119,9 +119,10 @@ function Chat({ initial }: { initial: FittingSnapshot | null }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [confirmed, setConfirmed] = useState(initial?.confirmed ?? false);
-  // Fresh chat: the greeting is the first host line (spoken until the first reply replaces it).
+  // Fresh chat: the greeting is the first host line, spoken until the golfer answers (a late token or an
+  // offline reply then can't start or keep it over the newer message).
   const greeting = useHostLine("chat_greeting");
-  useSpeakLine(line ?? (initial?.messages ? null : greeting));
+  useSpeakLine(line ?? (!initial?.messages && messages.length === 1 ? greeting : null));
 
   const card = pacing.questionsReady ? CARDS[cardIdx] : undefined;
 
