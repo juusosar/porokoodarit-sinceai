@@ -35,6 +35,11 @@ export function loadTokens(): Promise<Tokens> {
   return tokens;
 }
 
+/** Fetch tokens early (e.g. on the start screen) so the first line can play right away. */
+export function preloadHostLines(): void {
+  void loadTokens();
+}
+
 /** Line for a fixed banner; the token arrives a moment later (then useSpeakLine plays it). */
 export function useHostLine(id: HostLineId): Line {
   const [map, setMap] = useState<Tokens>({});
