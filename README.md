@@ -181,7 +181,7 @@ Code: `app/api/takomo_api/llm/` (`gemini.py`, `registry.py`, `chat.py`, `explain
   (`?demo=1`) needs `TAKOMO_DEMO_MODE=true`, an `X-Demo-Token` and a model allowlist.
 - **Voice (live).** ElevenLabs Flash v2.5. The API signs each host line (HMAC `audio_token`); `GET /v1/speak` streams
   mp3 only for signed lines, so it is no open TTS proxy. Memory cache, rate limit and daily character cap. The opening
-  greeting and host banners are spoken too. Web: `VITE_VOICE=on|browser|off`, mute toggle, captions always on.
+  greeting and host banners are spoken too. Web: `VITE_VOICE=on|off`, mute toggle, captions always on, no browser speech fallback.
 - **Abuse limits** per client IP, in memory per instance: explain 30/min, chat 120/min, swing 60/min, voice 30/min
   (cache misses only); 64,000-byte body cap (600,000 for swing keypoints).
 
