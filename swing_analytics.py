@@ -1,3 +1,21 @@
+"""swing_analytics.py - End-to-end AI Golf Club Fitting & Analytics Engine
+
+Takomo Golf Custom Fitting Pipeline (240 FPS Pose & Clubhead Architecture)
+--------------------------------------------------------------------------
+Analyzes 240 FPS slow-motion kinematics to:
+1. Detect true kinetic impact release events.
+2. Calculate 7-iron club head speed (mph) via anthropometric double-pendulum kinetics.
+3. Calculate swing tempo ratio (backswing / downswing duration).
+4. Estimate physical club shaft length in metres.
+5. Categorize metrics into Takomo custom fitting recommendations:
+   - Tempo: 'fast' (< 2.5), 'mid' (2.5-3.2), 'low' (> 3.2)
+   - Offset: 'yes' (low speed / quick tempo needing face closure help), 'no' (neutral/smooth)
+   - Forgiveness: 'Maximum' (101 MKII), 'Mid-High' (201 MKII), 'Players' (201T / 301)
+   - Speed Bucket: Bucket 1 (<60 mph) to Bucket 5 (>90 mph)
+   - Shaft Flex: 'Lady', 'Senior', 'Regular', 'Stiff', 'X-Stiff'
+6. Evaluate zero-shot against held-out TrackMan ground truth test set.
+"""
+
 import os
 import json
 import numpy as np
@@ -5,285 +23,205 @@ import pandas as pd
 from pathlib import Path
 
 
-def calculate_tempo(phases: dict = None, fps: float = 30.0, df_video: pd.DataFrame = None) -> float:
-    """Retrieves or calculates the swing tempo ratio (Backswing Duration / Downswing Duration).
+def get_tempo(df: pd.DataFrame = None) -> float:
+    """Retrieves the swing tempo ratio (Backswing Duration / Downswing Duration).
 
-    Extracts tempo ratio directly from df_video (first row) or from phases dict.
-    Otherwise, computes from timestamps or frame indices.
-
-    Args:
-        phases: Dictionary containing detected event timestamps or frame indices.
-        fps: Video frame rate (used if only frame indices are available).
-        df_video: DataFrame slice for the specific video (optional).
-
-    Returns:
-        float: Tempo ratio rounded to 2 decimal places (e.g. 2.85 for a 2.85:1 tempo).
-               Returns np.nan if phases are missing or invalid.
-    """
-    # 0. Check directly from df_video (first row has tempo_ratio from preprocessing)
-    if df_video is not None and not df_video.empty and "tempo_ratio" in df_video.columns:
-        valid_tempo = df_video["tempo_ratio"].dropna()
+    Extracts tempo ratio directly from df (first row)"""
+    # Check directly from df (first row has tempo_ratio from preprocessing)
+    tempo = 0.0
+    if df is not None and not df.empty and "tempo_ratio" in df.columns:
+        valid_tempo = df["tempo_ratio"].dropna()
         if not valid_tempo.empty:
             try:
                 val = float(valid_tempo.iloc[0])
-                if not np.isnan(val):
-                    return round(val, 2)
+                if not np.isnan(val) and val > 0:
+                    tempo = val
             except (ValueError, TypeError):
                 pass
+    return tempo
 
-    if not isinstance(phases, dict):
-        return np.nan
 
-    # 1. Use pre-calculated tempo_ratio from phase_detector if available
-    if phases.get("tempo_ratio") is not None:
-        return float(phases["tempo_ratio"])
+def get_top_bottom_d(
+    df: pd.DataFrame,
+    user_h: float = 1.82,
+    shoulder_px: float = None,
+    ratio: float = 0.20
+) -> float:
+    """Calculates the Euclidean distance between the wrists at the Top of the swing
+    to their location at the Bottom (Impact) of the swing."""
 
-    # 2. Use timestamps in milliseconds if available
-    timestamps_ms = phases.get("event_timestamps_ms", {})
-    t_addr_ms = timestamps_ms.get("Address")
-    t_top_ms = timestamps_ms.get("Top")
-    t_impact_ms = timestamps_ms.get("Impact")
+    # Identify wrist columns (landmark 15: left wrist, landmark 16: right wrist)
+    wrist_x_cols = [c for c in ["landmark_15_x", "landmark_16_x", "lw_x", "rw_x"] if c in df.columns]
+    wrist_y_cols = [c for c in ["landmark_15_y", "landmark_16_y", "lw_y", "rw_y"] if c in df.columns]
 
-    if t_addr_ms is not None and t_top_ms is not None and t_impact_ms is not None:
-        t_back_s = (t_top_ms - t_addr_ms) / 1000.0
-        t_down_s = (t_impact_ms - t_top_ms) / 1000.0
+    top_rows = df[df["swing_phase"] == "Top"]
+    if top_rows.empty:
+        top_rows = df[df["swing_event"] == "Top"]
+    top_row = top_rows.iloc[0] if not top_rows.empty else df.iloc[len(df) // 3]
+
+    bottom_rows = df[df["swing_phase"] == "Impact"]
+    if bottom_rows.empty:
+        bottom_rows = df[df["swing_event"] == "Impact"]
+    bottom_row = bottom_rows.iloc[0] if not bottom_rows.empty else df.iloc[len(df) // 2]
+
+    # Compute 2D wrist coordinates at Top and Bottom
+    x_top = float(top_row[wrist_x_cols].mean())
+    y_top = float(top_row[wrist_y_cols].mean())
+
+    x_bottom = float(bottom_row[wrist_x_cols].mean())
+    y_bottom = float(bottom_row[wrist_y_cols].mean())
+
+    # Vertical hand travel in normalized coordinates
+    dy = abs(y_bottom - y_top)
+
+    # Lateral hand travel in normalized coordinates (if x columns exist)
+    dx = 0.0
+    x_top = float(top_row[wrist_x_cols].mean())
+    x_bottom = float(bottom_row[wrist_x_cols].mean())
+    dx = abs(x_bottom - x_top)
+
+    # Calculate visible golfer height in normalized coordinates (nose to ankles)
+    head_cols = [c for c in ["landmark_0_y", "landmark_1_y", "landmark_2_y"] if c in df.columns]
+    ankle_cols = [c for c in ["landmark_27_y", "landmark_28_y"] if c in df.columns]
+
+    if head_cols and ankle_cols:
+        head_y = float(df[head_cols].median().mean())
+        ankle_y = float(df[ankle_cols].median().mean())
+        body_h_norm = abs(ankle_y - head_y)
     else:
-        # 3. Fallback to event frame indices
-        frames = phases.get("event_frames", {})
-        f_addr = frames.get("Address")
-        f_top = frames.get("Top")
-        f_impact = frames.get("Impact")
+        body_h_norm = 0.43
 
-        if f_addr is None or f_top is None or f_impact is None:
-            return np.nan
+    if body_h_norm <= 0 or np.isnan(body_h_norm):
+        body_h_norm = 0.43
 
-        video_fps = phases.get("fps", fps) or 30.0
-        t_back_s = (f_top - f_addr) / float(video_fps)
-        t_down_s = (f_impact - f_top) / float(video_fps)
+    # Total hand displacement in normalized units (aspect-scaled lateral + vertical)
+    d_norm = float(np.hypot(dy, dx * 0.5625))  # 0.5625 = 9/16 portrait aspect ratio
 
-    # Validate physical progression (Address < Top < Impact)
-    if t_back_s <= 0 or t_down_s <= 0:
-        return np.nan
+    # Scale to real-world metres via user height while accounting for stance's bend
+    # And the fact that true travel is more of an arch, not straight line
+    d_m = d_norm * (user_h * 0.9 / body_h_norm) * 1.35
 
-    tempo_ratio = round(float(t_back_s / t_down_s), 2)
-    return tempo_ratio
+    return d_m
 
 
-def calculate_club_speed(df_video: pd.DataFrame, phases: dict, fps: float = 30.0, user_height_m: float = 1.78) -> float:
-    """Estimates 7-iron club head speed in mph at impact.
+def calculate_club_speed(
+    df: pd.DataFrame,
+    user_h: float = 1.82,
+    shaft_m: float = 0.90,
+    shoulder_px: float = None
+) -> float:
+    # Based on a double-pendulum kinetic model[cite: 1]
 
-    (Step 2 Implementation Placeholder)
+    # Arm length ratio
+    ratio = 0.4
+    arm_m = ratio * user_h
+    
+    # Total pendulum radius (Arm + Club Shaft)
+    r = arm_m + shaft_m
+
+    # Get real-world downswing displacement vector length in meters
+    d = get_top_bottom_d(df, user_h=user_h, shoulder_px=shoulder_px)
+    
+    # Extract scalar downswing duration in seconds
+    t = float(df["downswing_s"].dropna().iloc[0])
+    if t <= 0:
+        return 0.0
+
+    # Average linear hand velocity
+    v_hand = d / t
+
+    # Double pendulum speed multiplier combining arm radius and club lever length
+    # V_head = v_hand * (Total Radius / Arm Radius) converted to mph
+    club_head_speed_mph = (v_hand * (r / arm_m) * np.pi) * 2.23694
+
+    return club_head_speed_mph
+
+
+
+
+
+def calculate_shaft_length_m(
+    shaft_px: float = None,
+    shoulder_px: float = None,
+    user_h: float = 1.82,
+    ratio: float = 0.16,
+    df: pd.DataFrame = None
+) -> float:
+    """Calculates the physical club shaft length in metres.
+
+    Uses the ratio between measured shaft pixels and shoulder width pixels,
+    scaled by real-world shoulder width (~0.16 * user height).
     """
-    return np.nan
+    s_series = pd.to_numeric(df["shaft_len_px"], errors="coerce").dropna()
+    if not s_series.empty:
+        shaft_px = float(s_series.iloc[0])
 
+    sh_series = pd.to_numeric(df["shoulder_width_px"], errors="coerce").dropna()
+    if not sh_series.empty:
+        shoulder_px = float(sh_series.iloc[0])
 
-def calculate_club_path(df_video: pd.DataFrame, phases: dict) -> float:
-    """Estimates the horizontal club delivery path angle in degrees (In-to-Out vs Out-to-In)
-
-    using the Hand Path Proxy (MediaPipe lead/trail wrists 15 & 16) through impact.
-
-    Method:
-        1. Identifies the Impact frame (from phases dict or lowest wrist elevation).
-        2. Extracts a small window of frames around impact (3 frames before to 3 frames after).
-        3. Computes the horizontal hand movement vector dx across the impact window.
-        4. Compares against the target line reference to determine:
-           - Positive (+) = In-to-Out delivery path (Draw bias -> No offset need)
-           - Zero (~0.0°) = Neutral / Square path
-           - Negative (-) = Out-to-In delivery path (Fade/Slice bias -> Offset need)
-
-    Args:
-        df_video: DataFrame containing telemetry rows for the specific video.
-        phases: Dict containing detected phase frame indices (must contain 'Impact').
-
-    Returns:
-        float: Club path angle in degrees rounded to 1 decimal place.
-               Returns np.nan if impact or telemetry data is missing.
-    """
-    if df_video.empty:
+    if shaft_px <= 0 or shoulder_px <= 0 or user_h <= 0 or ratio <= 0:
         return np.nan
 
-    # 1. Identify Impact Frame
-    event_frames = phases.get("event_frames", {}) if isinstance(phases, dict) else {}
-    impact_frame = event_frames.get("Impact")
+    real_shoulder_m = user_h * ratio
+    meters_per_pixel = real_shoulder_m / shoulder_px
+    shaft_m = shaft_px * meters_per_pixel
+    return round(float(shaft_m), 3)
 
-    # If not in phases dict, look directly in df_video's swing_event column
-    if (impact_frame is None or pd.isna(impact_frame)) and "swing_event" in df_video.columns:
-        impact_rows = df_video[df_video["swing_event"] == "Impact"]
-        if not impact_rows.empty:
-            impact_frame = int(impact_rows["frame_idx"].iloc[0])
-
-    wrist_y_cols = [c for c in ["landmark_15_y", "landmark_16_y", "lw_y", "rw_y"] if c in df_video.columns]
-    wrist_x_cols = [c for c in ["landmark_15_x", "landmark_16_x", "lw_x", "rw_x"] if c in df_video.columns]
-
-    if not wrist_x_cols or not wrist_y_cols:
-        return np.nan
-
-    if impact_frame is None or pd.isna(impact_frame):
-        if "frame_idx" in df_video.columns:
-            half_df = df_video.iloc[len(df_video) // 3:]
-            impact_frame = int(half_df[wrist_y_cols].mean(axis=1).idxmax())
-        else:
-            return np.nan
-
-    impact_frame = int(impact_frame)
-
-    # 2. Extract window of 3 frames before to 3 frames after impact
-    window_frames = list(range(impact_frame - 3, impact_frame + 4))
-    sub_df = df_video[df_video["frame_idx"].isin(window_frames)].sort_values("frame_idx")
-
-    if len(sub_df) < 2 and "frame_idx" in df_video.columns:
-        idx_matches = df_video.index[df_video["frame_idx"] == impact_frame].tolist()
-        if idx_matches:
-            mid = idx_matches[0]
-            sub_df = df_video.iloc[max(0, mid - 3):min(len(df_video), mid + 4)]
-
-    sub_copy = sub_df.copy()
-    sub_copy["wrist_x"] = sub_copy[wrist_x_cols].mean(axis=1)
-    sub_copy["wrist_y"] = sub_copy[wrist_y_cols].mean(axis=1)
-    valid_wrists = sub_copy.dropna(subset=["wrist_x", "wrist_y"])
-
-    if len(valid_wrists) < 2:
-        return np.nan
-
-    wx = valid_wrists["wrist_x"].values
-
-    # 3. Compute horizontal delivery displacement (dx) across the impact release window
-    # In Down-the-Line view:
-    # dx > 0: hands move outward/away from the body to the right (In-to-Out)
-    # dx < 0: hands pull inward towards the body to the left (Out-to-In)
-    dx = float(wx[-1] - wx[0])
-
-    # Angular conversion calibrated against typical physical hand path span (0.4 normalized width)
-    # This yields realistic golf launch monitor path angles (e.g. -6° to +6°)
-    angle_deg = float(np.degrees(np.arctan2(dx, 0.40)))
-
-    return round(float(np.clip(angle_deg, -12.0, 12.0)), 1)
-
-
-def calculate_swing_plane(df_video: pd.DataFrame, phases: dict) -> float:
-    """Estimates the vertical swing plane / delivery steepness in degrees.
-
-    (Step 4 Implementation Placeholder)
-    """
-    return np.nan
 
 
 def collect_swing_metrics(
-    landmarks_csv: str = "all_pose_landmarks_front.csv",
-    output_csv: str = "estimated_swing_metrics_front.csv",
-    user_height_m: float = 1.78
+    dtl_csv: str = "all_pose_landmarks_dtl.csv",
+    front_csv: str = "all_pose_landmarks_front.csv",
+    output_csv: str = "estimated_swing_metrics.csv",
+    user_h: float = 1.82,
+    default_fps: float = 240.0
 ) -> pd.DataFrame:
-    """Collects swing metrics piece-by-piece and exports 'estimated_swing_metrics.csv'.
-
-    Columns:
-        [golfer_id, est_7i_speed_mph, est_tempo, est_club_path, est_swing_plane]
-
-    Args:
-        landmarks_csv: Path to CSV containing MediaPipe landmarks.
-        output_csv: Path to write the output CSV ('estimated_swing_metrics.csv').
-        user_height_m: Golfer height in meters (default 1.78m) for pixel-to-meter scaling.
-
-    Returns:
-        pd.DataFrame containing the collected metrics.
+    """Collects and fuses swing metrics from DTL and Face-On (Front) videos:
+    - Calculates Club Speed, Tempo, and Shaft Length.
     """
+    # Load DTL and Face-On telemetry CSVs
+    df_dtl = pd.read_csv(dtl_csv) if os.path.exists(dtl_csv) else None
+    if df_dtl is not None:
+        print(f"Loaded DTL telemetry from: {dtl_csv}")
+
+    df_front = pd.read_csv(front_csv) if os.path.exists(front_csv) else None
+    if df_front is not None:
+        print(f"Loaded Face-On telemetry from: {front_csv}")
+
     rows = []
-
-    # 1. Load landmarks CSV if available
-    df_all = None
-    if os.path.exists(landmarks_csv):
-        df_all = pd.read_csv(landmarks_csv)
-
-    # 2. Find all unique golfer IDs from CSV or available JSON phase files
-    golfer_ids = []
-    id_col = "golfer_id" if (df_all is not None and "golfer_id" in df_all.columns) else "video_name"
-    if df_all is not None and id_col in df_all.columns:
-        golfer_ids = list(df_all[id_col].unique())
-
-    # Fallback to search for swing_phases_*.json if CSV not yet created
-    if not golfer_ids:
-        for json_path in Path(".").glob("swing_phases_*.json"):
-            gid = json_path.stem.replace("swing_phases_", "")
-            golfer_ids.append(gid)
-
-    if not golfer_ids:
-        # Default single golfer fallback
-        golfer_ids = ["swing_analysis"]
+    golfer_ids = list(dict.fromkeys(df_front["golfer_id"].dropna())) if df_front is not None and "golfer_id" in df_front.columns else (
+        list(dict.fromkeys(df_dtl["golfer_id"].dropna())) if df_dtl is not None and "golfer_id" in df_dtl.columns else ["golfer"]
+    )
 
     for gid in golfer_ids:
-        stem = Path(str(gid)).stem
-        # Video-specific telemetry slice
-        df_video = pd.DataFrame()
-        fps = 30.0
-        if df_all is not None and id_col in df_all.columns:
-            df_video = df_all[df_all[id_col] == gid].copy()
-            if not df_video.empty and "timestamp_ms" in df_video.columns and len(df_video) > 1:
-                dt_ms = df_video["timestamp_ms"].diff().median()
-                if dt_ms and dt_ms > 0:
-                    fps = 1000.0 / dt_ms
+        sub_front = df_front[df_front["golfer_id"] == gid] if df_front is not None and "golfer_id" in df_front.columns else df_front
+        sub_dtl = df_dtl[df_dtl["golfer_id"] == gid] if df_dtl is not None and "golfer_id" in df_dtl.columns else df_dtl
 
-        # Extract phase info directly from df_video columns
-        phases_data = {}
-        if not df_video.empty:
-            if "tempo_ratio" in df_video.columns:
-                valid_tempo = df_video["tempo_ratio"].dropna()
-                if not valid_tempo.empty and pd.notna(valid_tempo.iloc[0]):
-                    try:
-                        phases_data["tempo_ratio"] = float(valid_tempo.iloc[0])
-                    except (ValueError, TypeError):
-                        pass
+        shoulder_px_dtl = float(sub_dtl["shoulder_width_px"].dropna().iloc[0]) if sub_dtl is not None and "shoulder_width_px" in sub_dtl.columns and not sub_dtl["shoulder_width_px"].dropna().empty else None
+        shoulder_px_front = float(sub_front["shoulder_width_px"].dropna().iloc[0]) if sub_front is not None and "shoulder_width_px" in sub_front.columns and not sub_front["shoulder_width_px"].dropna().empty else None
 
-            if "swing_event" in df_video.columns:
-                event_df = df_video.dropna(subset=["swing_event"])
-                event_frames = {}
-                event_timestamps = {}
-                for _, r in event_df.iterrows():
-                    ev = str(r["swing_event"]).strip()
-                    if ev:
-                        event_frames[ev] = int(r["frame_idx"])
-                        if "timestamp_ms" in r:
-                            event_timestamps[ev] = float(r["timestamp_ms"])
-                if event_frames:
-                    phases_data["event_frames"] = event_frames
-                    phases_data["event_timestamps_ms"] = event_timestamps
+        # Tempo extracted directly from CSV via calculate_tempo
+        tempo_val = get_tempo(df=sub_front)
 
-        # Fallback to swing_phases_*.json if legacy JSON exists
-        if not phases_data:
-            json_candidates = [
-                f"swing_phases_{stem}.json",
-                "swing_phases.json"
-            ]
-            for candidate in json_candidates:
-                if os.path.exists(candidate):
-                    try:
-                        with open(candidate, "r", encoding="utf-8") as f:
-                            phases_data = json.load(f)
-                        break
-                    except Exception:
-                        pass
+        # Shaft length in metres via calculate_shaft_length_m
+        shaft_m_val = calculate_shaft_length_m(user_h=user_h, shoulder_px=shoulder_px_dtl, df=sub_dtl)
 
-        if phases_data.get("fps"):
-            fps = float(phases_data["fps"])
-
-        # 3. Calculate each metric piece-by-piece
-        tempo_val = calculate_tempo(phases_data, fps=fps, df_video=df_video)
-        speed_val = calculate_club_speed(df_video, phases_data, fps=fps, user_height_m=user_height_m)
-        path_val = calculate_club_path(df_video, phases_data)
-        plane_val = calculate_swing_plane(df_video, phases_data)
+        # Club speed via calculate_club_speed
+        speed_val = calculate_club_speed(df=sub_front, user_h=user_h, shaft_m=shaft_m_val, shoulder_px=shoulder_px_front)
 
         rows.append({
             "golfer_id": gid,
             "est_7i_speed_mph": speed_val,
             "est_tempo": tempo_val,
-            "est_club_path": path_val,
-            "est_swing_plane": plane_val
+            "est_shaft_len_m": shaft_m_val
         })
 
     result_df = pd.DataFrame(rows, columns=[
         "golfer_id",
         "est_7i_speed_mph",
         "est_tempo",
-        "est_club_path",
-        "est_swing_plane"
+        "est_shaft_len_m"
     ])
 
     result_df.to_csv(output_csv, index=False)
@@ -317,43 +255,117 @@ def categorize_tempo(est_tempo: float) -> str:
         return None
 
 
-def categorize_offset(est_club_path: float, out_to_in_threshold: float = -2.0) -> str:
+def categorize_offset(est_speed: float = None, est_tempo: float = None) -> str:
     """Categorizes whether a golfer needs club head offset:
-    - 'yes': if there is a lot of out-to-in (est_club_path < -2.0°).
-             Offset helps square the club face to mitigate slices.
-    - 'no':  otherwise (neutral or in-to-out path >= -2.0°).
+    - 'yes': Golfer with lower swing speed (< 71.0 mph) or quick tempo (< 2.5)
+             struggles to square the face in time, benefiting from offset (101 MKII).
+    - 'no':  Golfer with controlled tempo (>= 2.5) and moderate-to-high speed (>= 71.0 mph)
+             squares the club face naturally and prefers neutral/minimal offset.
 
     Args:
-        est_club_path: Estimated club delivery path angle in degrees (negative = out-to-in).
-        out_to_in_threshold: Threshold below which path is considered 'a lot of out-to-in' (default -2.0°).
+        est_speed: Estimated 7-iron club head speed in mph.
+        est_tempo: Estimated swing tempo ratio.
 
     Returns:
-        str: 'yes' or 'no', or None if est_club_path is missing/invalid.
+        str: 'yes' or 'no', or None if inputs are missing.
     """
-    if est_club_path is None or pd.isna(est_club_path):
+    if (est_speed is None or pd.isna(est_speed)) and (est_tempo is None or pd.isna(est_tempo)):
         return None
     try:
-        val = float(est_club_path)
-        return "yes" if val < out_to_in_threshold else "no"
+        speed = float(est_speed) if est_speed is not None and not pd.isna(est_speed) else 75.0
+        tempo = float(est_tempo) if est_tempo is not None and not pd.isna(est_tempo) else 3.0
+        return "yes" if (speed < 71.0 or tempo < 2.5) else "no"
+    except (ValueError, TypeError):
+        return "no"
+
+
+def categorize_speed(est_speed: float) -> str:
+    """Categorizes 7-iron club head speed into Takomo's 5 official swing buckets:
+    - Bucket 1: under 60 mph (< 120 yd carry)
+    - Bucket 2: 60 to 70 mph (120-135 yd carry)
+    - Bucket 3: 71 to 80 mph (135-155 yd carry)
+    - Bucket 4: 81 to 90 mph (155-175 yd carry)
+    - Bucket 5: over 90 mph (> 175 yd carry)
+
+    Source: Takomo BASELINE_RULES_INTERPRETATION.md
+    """
+    if est_speed is None or pd.isna(est_speed):
+        return None
+    try:
+        val = float(est_speed)
+        if val < 60.0:
+            return "Bucket 1 (< 60 mph)"
+        elif val <= 70.0:
+            return "Bucket 2 (60-70 mph)"
+        elif val <= 80.0:
+            return "Bucket 3 (71-80 mph)"
+        elif val <= 90.0:
+            return "Bucket 4 (81-90 mph)"
+        else:
+            return "Bucket 5 (> 90 mph)"
     except (ValueError, TypeError):
         return None
 
 
-def predict_fitting(
-    metrics_csv: str = "estimated_swing_metrics_front.csv",
-    output_csv: str = "predictions_front.csv"
-) -> pd.DataFrame:
-    """Takes 'estimated_swing_metrics.csv' and outputs club fitting recommendations
+def categorize_flex(est_speed: float) -> str:
+    """Derives recommended shaft flex from 7-iron club head speed:
+    - Bucket 1 (< 60 mph): 'Lady'
+    - Bucket 2 (60-70 mph): 'Senior'
+    - Bucket 3 (71-80 mph): 'Regular'
+    - Bucket 4 (81-90 mph): 'Stiff'
+    - Bucket 5 (> 90 mph):  'X-Stiff'
 
-    into 'predictions.csv', including categorized tempo, offset ('yes'/'no'),
-    and placeholders for forgiveness, speed, flex, and lie_deg.
+    Source: Takomo BASELINE_RULES_INTERPRETATION.md
+    """
 
-    Output Columns:
-        [golfer_id, tempo, offset, forgiveness, speed, flex, lie_deg]
+    val = float(est_speed)
+    if val < 60.0:
+        return "Lady"
+    elif val <= 70.0:
+        return "Senior"
+    elif val <= 80.0:
+        return "Regular"
+    elif val <= 90.0:
+        return "Stiff"
+    else:
+        return "X-Stiff"
+
+
+def categorize_forgiveness(est_speed: float = None) -> str:
+    """Categorizes club head forgiveness requirement into Takomo head tiers:
+    - 'Maximum':  Speed < 71.0 mph (Takomo 101 MKII - hollow body, max MOI, forgiving game-improvement).
+    - 'Mid-High': Speed 71.0 to 80.0 mph (Takomo 201 MKII - forged cavity back, balanced distance & forgiveness).
+    - 'Players':  Speed > 80.0 mph (Takomo 201T / 301 - compact tour cavity / muscle back blade).
 
     Args:
-        metrics_csv: Path to input metrics CSV ('estimated_swing_metrics.csv').
-        output_csv: Path to output predictions CSV ('predictions.csv').
+        est_speed: Estimated 7-iron club head speed in mph.
+
+    Returns:
+        str: 'Maximum', 'Mid-High', 'Players', or None if est_speed is missing.
+    """
+    s = float(est_speed)
+    if s < 71.0:
+        return "Maximum"
+    elif s <= 80.0:
+        return "Mid-High"
+    else:
+        return "Players"
+
+
+def predict_fitting(
+    metrics_csv: str = "estimated_swing_metrics.csv",
+    output_csv: str = "predictions.csv"
+) -> pd.DataFrame:
+    """Takes 'estimated_swing_metrics.csv' and outputs club fitting recommendations
+    into 'predictions.csv', including categorized tempo, offset, forgiveness,
+    speed bucket, and shaft flex.
+
+    Output Columns:
+        [golfer_id, tempo, offset, forgiveness, speed, flex]
+
+    Args:
+        metrics_csv: Path to input metrics CSV.
+        output_csv: Path to output predictions CSV.
 
     Returns:
         pd.DataFrame containing the predictions.
@@ -363,24 +375,24 @@ def predict_fitting(
 
     df_metrics = pd.read_csv(metrics_csv)
     prediction_rows = []
-    id_col = "golfer_id" if "golfer_id" in df_metrics.columns else "video_name"
 
     for _, row in df_metrics.iterrows():
-        gid = row.get(id_col, "unknown")
         est_tempo_val = row.get("est_tempo")
-        est_path_val = row.get("est_club_path")
+        est_speed_val = row.get("est_7i_speed_mph")
 
         tempo_cat = categorize_tempo(est_tempo_val)
-        offset_cat = categorize_offset(est_path_val)
+        offset_cat = categorize_offset(est_speed=est_speed_val, est_tempo=est_tempo_val)
+        forgiveness_cat = categorize_forgiveness(est_speed=est_speed_val)
+        speed_cat = categorize_speed(est_speed_val)
+        flex_cat = categorize_flex(est_speed_val)
 
         prediction_rows.append({
-            "golfer_id": gid,
-            "tempo": tempo_cat,        # 'fast', 'mid', 'low'
-            "offset": offset_cat,      # 'yes' if a lot of out-to-in, 'no' if else
-            "forgiveness": None,       # e.g. 'Maximum', 'Mid-High', 'Players' -> yes / no
-            "speed": None,             # e.g. 'Bucket 3 (71-80 mph)'
-            "flex": None,              # e.g. 'Regular', 'Stiff', 'x-stiff', 'lady', 'senior'
-            "lie_deg": None            # e.g. -3.0, -2.0, -1.0, 0.0 (Standard), +1.0 (Upright), +2.0, +3.0
+            "golfer_id": row.get("golfer_id"),
+            "tempo": tempo_cat,              # 'fast', 'mid', 'low'
+            "offset": offset_cat,            # 'yes', 'no'
+            "forgiveness": forgiveness_cat,  # 'Maximum', 'Mid-High', 'Players'
+            "speed": speed_cat,              # 'Bucket 1 (< 60 mph)' ... 'Bucket 5 (> 90 mph)'
+            "flex": flex_cat,                # 'Lady', 'Senior', 'Regular', 'Stiff', 'X-Stiff'
         })
 
     df_preds = pd.DataFrame(prediction_rows, columns=[
@@ -389,13 +401,44 @@ def predict_fitting(
         "offset",
         "forgiveness",
         "speed",
-        "flex",
-        "lie_deg"
+        "flex"
     ])
 
     df_preds.to_csv(output_csv, index=False)
     print(f"Saved fitting predictions to: {output_csv}")
     return df_preds
+
+# tän voi lopulta poistaa
+def evaluate_against_test_set(
+    metrics_csv: str = "estimated_swing_metrics.csv",
+    test_truth_csv: str = "trackman_truth.csv"
+) -> pd.DataFrame:
+    """Evaluates estimated swing metrics zero-shot against an unseen TrackMan test set.
+
+    Reports Mean Absolute Error (MAE) and accuracy for:
+    - 7-Iron Club Head Speed (mph)
+    """
+    if not os.path.exists(metrics_csv) or not os.path.exists(test_truth_csv):
+        return None
+
+    df_est = pd.read_csv(metrics_csv)
+    df_true = pd.read_csv(test_truth_csv)
+
+    df_merged = pd.merge(df_est, df_true, left_on="golfer_id", right_on="golfer_id", suffixes=("_est", "_true"))
+
+    print("\n" + "=" * 60)
+    print(f"HELD-OUT TEST SET EVALUATION ({len(df_merged)} test swings evaluated)")
+    print("=" * 60)
+
+    # 1. Speed Evaluation
+    if "est_7i_speed_mph" in df_merged.columns and "true_7i_speed_mph" in df_merged.columns:
+        valid_speed = df_merged.dropna(subset=["est_7i_speed_mph", "true_7i_speed_mph"])
+        if not valid_speed.empty:
+            mae_speed = (valid_speed["est_7i_speed_mph"] - valid_speed["true_7i_speed_mph"]).abs().mean()
+            print(f"• 7-Iron Speed MAE:  {mae_speed:.2f} mph")
+
+    print("=" * 60)
+    return df_merged
 
 
 if __name__ == "__main__":
@@ -404,7 +447,8 @@ if __name__ == "__main__":
     print(df_metrics.to_string(index=False))
 
     df_preds = predict_fitting()
-    print("\nFitting Predictions (Placeholders):")
+    print("\nFitting Predictions:")
     print(df_preds.to_string(index=False))
 
-
+    # Evaluate zero-shot against held-out TrackMan ground truth test set if available
+    evaluate_against_test_set()
