@@ -64,7 +64,7 @@
     },
     "HAND_ASKED": {
       "part": "hand",
-      "text": "{hand}-handed, as you told us."
+      "text": "{hand}-handed, as entered."
     },
     "PURCHASE_STOCK": {
       "part": "purchase",
@@ -116,7 +116,7 @@
     },
     "CONTRADICTION": {
       "part": "*",
-      "text": "User entered {asked} {asked_unit}, but we measured {measured} {unit}. Which is right?"
+      "text": "You entered {asked} {asked_unit}, but we measured {measured} {unit}. Which is right?"
     },
     "HEAD_ALT_STRONGER": {
       "part": "head",
@@ -136,7 +136,7 @@
     },
     "CARRY_READ": {
       "part": "shaft",
-      "text": "User entered {said} yd; we use about {used} yd, because most golfers remember their best shots."
+      "text": "You entered {said} yd; we use about {used} yd, because most golfers remember their best shots."
     },
     "SPEED_FROM_CARRY_LOFT": {
       "part": "shaft",
