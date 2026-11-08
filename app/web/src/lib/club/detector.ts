@@ -6,6 +6,9 @@ export const MODEL_URL = "/models/swingtrace-yolo11m-fp16.onnx";
 export const INPUT = 640;
 export const SHAFT_CLASS = 0; // same class + threshold as the Python pipeline (video_preprocessing.py)
 export const MIN_CONF = 0.25;
+/** main's down-the-line read (video_preprocessing.py): class 1 = club head, else the best box of any class, conf 0.20. */
+export const HEAD_CLASS = 1;
+export const HEAD_MIN_CONF = 0.2;
 
 export type Backend = "webgpu" | "wasm";
 export type ClubDetector = {
@@ -57,6 +60,18 @@ export function bestBox(
     h: out[row(3) + best] / s / lb.h,
     conf: bestConf,
   };
+}
+
+/** Club head like main's DTL read: the best class-1 box, or the most confident box of any class when no head is found. */
+export function bestHeadBox(out: ArrayLike<number>, dims: readonly number[], lb: Letterbox): Detection | null {
+  const head = bestBox(out, dims, lb, HEAD_CLASS, HEAD_MIN_CONF);
+  if (head) return head;
+  let best: Detection | null = null;
+  for (let c = 0; c < dims[1] - 4; c++) {
+    const d = bestBox(out, dims, lb, c, HEAD_MIN_CONF);
+    if (d && (!best || d.conf > best.conf)) best = d;
+  }
+  return best;
 }
 
 /** RGBA pixels of the letterboxed frame -> float32 CHW 0..1, written into `out` (reuse it: no per-frame 5 MB alloc). */
@@ -126,6 +141,7 @@ export async function detectLetterboxed(
   det: ClubDetector,
   canvas: Canvas2D,
   lb: Letterbox,
+  pick: (out: ArrayLike<number>, dims: readonly number[], lb: Letterbox) => Detection | null = bestBox,
 ): Promise<{ box: Detection | null; prepMs: number; inferMs: number }> {
   const t0 = performance.now();
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -150,7 +166,7 @@ export async function detectLetterboxed(
     out = (await det.session.run({ [det.session.inputNames[0]]: inputTensor }))[det.session.outputNames[0]];
     const data = (await out.getData()) as Float32Array;
     const t2 = performance.now();
-    return { box: bestBox(data, out.dims, lb), prepMs: t1 - t0, inferMs: t2 - t1 };
+    return { box: pick(data, out.dims, lb), prepMs: t1 - t0, inferMs: t2 - t1 };
   } finally {
     out?.dispose(); // input tensor is reused across frames
   }
