@@ -6,7 +6,6 @@ Data handling: [docs/DATA_PRIVACY.md](docs/DATA_PRIVACY.md).
 ```
 app/
   web/     UI (Lovable design, ported): Vite SPA, React 19, TanStack Router, Tailwind 4, shadcn
-  web_legacy/  previous MVP UI, reference only (not built or deployed)
   api/     FastAPI: engine, fusion, swing analysis, LLM + voice proxy
   shared/  fit_state.schema.json (generated), reason_codes.json, host_lines.json
   vision/  ONNX export, swing research pipeline + ball-line photos (research/), unused Modal stub
@@ -42,13 +41,13 @@ cd ../web && npm run gen:types
 CI fails if either generated file is stale.
 
 ## Web UI (from Lovable)
-`app/web` is the Lovable design (original export kept at repo root `frontend/`), ported to a static SPA on our API:
+`app/web` is the Lovable design, ported to a static SPA on our API:
 - Host chat (profiling with "Gront") -> `POST /v1/chat` (our LLM adapter, scripted fallback). Was Lovable AI gateway.
 - Fit + reasons -> `POST /v1/fit`, host walkthrough + voice -> `POST /v1/explain` (+ `/v1/speak`). Was "pending validation".
 - Saved fitting, extra data, head selection -> browser localStorage (30 days). Was Lovable Cloud (Supabase).
 - Swing video -> pose read on the device (MediaPipe); keypoints only -> `POST /v1/swing/analyze` (main's algorithm: tempo + estimated speed), on-device tempo as fallback. Video never uploaded. Was a private cloud upload. See `app/vision/research/README.md`.
 - Routes are files in `src/routes` (TanStack Router plugin regenerates `src/routeTree.gen.ts`; commit it).
-- Hidden LLM switch panel: add `?demo=1`. Legacy screens for reference: `app/web_legacy`.
+- Hidden LLM switch panel: add `?demo=1`.
 
 ## Git workflow
 Rebase-merge only, linear history. See [../CONTRIBUTING.md](../CONTRIBUTING.md).
