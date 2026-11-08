@@ -1,6 +1,7 @@
 {
-  "about": "Fixed host (Gront) banner lines on the screens after chat. Shown by the web app, signed for the voice by the API (copy in api/takomo_api/data, synced by python -m takomo_api.export_schema). Each line is a list of paragraphs; the voice reads them joined by a space.",
+  "about": "Fixed host (Gront) lines: chat greeting and banners on the screens after chat. Shown by the web app, signed for the voice by the API (copy in api/takomo_api/data, synced by python -m takomo_api.export_schema). Each line is a list of paragraphs; the voice reads them joined by a space.",
   "lines": {
+    "chat_greeting": ["Hey, Gront here. I'll fit you like I'm standing next to you on the range. Quick taps first, then we talk. Start with the basics:"],
     "swing_intro": ["One normal swing. Let’s see what your clubs are working with."],
     "swing_reading": ["Reading your swing right here on your device. Nothing gets uploaded."],
     "swing_tempo": ["Got your timing. Tempo helps pick the shaft profile; your answers guide the rest."],
