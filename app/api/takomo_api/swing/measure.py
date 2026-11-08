@@ -8,6 +8,8 @@ from main stays a plain copy, see app/vision/sync-main.sh):
 - aspect ratio: upstream hand travel scales x by a fixed 9/16 (portrait). x is rescaled so the real frame
   aspect ratio is used (landscape clips no longer under-read lateral travel).
 - missing phases: upstream speed code crashes without a downswing time; here speed is skipped instead.
+- gaps: wrists for the speed read are visibility-masked and gap-filled, so one dropped frame at Top/Impact
+  doesn't lose the speed (upstream reads the raw frame).
 - rules: upstream categorize_* / predict_fitting are not used. Only measurements leave this module; the engine
   owns flex, head and tempo decisions.
 """
@@ -116,7 +118,13 @@ def analyze(req: SwingAnalyzeRequest) -> SwingAnalysis:
     sw["swing_event"] = [frame_to_event.get(i, "") for i in range(len(sw))]
     sw["downswing_s"] = [down] + [np.nan] * (len(sw) - 1)
     aspect = req.pose.width / req.pose.height
-    for k in ("15", "16"):  # upstream multiplies dx by 9/16: rescale so the product uses the real aspect ratio
+    for k in ("15", "16"):
+        # Upstream reads raw wrists at the Top and Impact frames: a dropped or occluded frame there would give NaN or
+        # a wrong hand travel. Mask low visibility and fill gaps like the phase detector does for its own input.
+        ok = sw[f"landmark_{k}_vis"].fillna(0) > WRIST_VIS_MIN
+        for a in ("x", "y"):
+            sw[f"landmark_{k}_{a}"] = sw[f"landmark_{k}_{a}"].where(ok).interpolate(limit_direction="both")
+        # upstream multiplies dx by 9/16: rescale so the product uses the real aspect ratio
         sw[f"landmark_{k}_x"] = sw[f"landmark_{k}_x"] * (aspect / UPSTREAM_ASPECT)
     height_m = req.height_cm / 100 if req.height_cm else DEFAULT_HEIGHT_M
     if not req.height_cm:
