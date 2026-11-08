@@ -31,6 +31,19 @@ function serverCandidate(r: SwingServerResult | null): Candidate | null {
   return { backswingS: back, downswingS: down, ratio: Math.round((back / down) * 100) / 100, sd: Math.max(r.backswing_s.sd, r.downswing_s.sd) };
 }
 
+const DTL_LOAD_TIMEOUT_MS = 8000;
+
+/** iOS may never fire loadeddata for a second video element: give up after `ms` or on Stop. */
+function withTimeout<T>(p: Promise<T>, ms: number, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('down-the-line video did not load')), ms);
+    const onAbort = () => { clearTimeout(timer); reject(new DOMException('aborted', 'AbortError')); };
+    signal.addEventListener('abort', onAbort, { once: true });
+    p.then(v => { clearTimeout(timer); signal.removeEventListener('abort', onAbort); resolve(v); },
+      e => { clearTimeout(timer); signal.removeEventListener('abort', onAbort); reject(e); });
+  });
+}
+
 function loadVideo(src: string): { video: HTMLVideoElement; loaded: Promise<void> } {
   const video = document.createElement('video');
   video.muted = true; video.playsInline = true; video.preload = 'auto'; video.src = src;
@@ -86,7 +99,7 @@ export function useSwingUpload(enabled: boolean) {
       const details = await inspectVideo(next);
       if (localUrl.current) URL.revokeObjectURL(localUrl.current);
       localUrl.current = URL.createObjectURL(next);
-      setFile(next); setUrl(localUrl.current); setTiming(details); setName(next.name); setSize(next.size); setAnalysis(null); setPhase('preview');
+      setFile(next); setDtlFile(null); setUrl(localUrl.current); setTiming(details); setName(next.name); setSize(next.size); setAnalysis(null); setPhase('preview');
     } catch { setError('This video could not be read. Choose an MP4, MOV or WebM under 50 MB and 10 minutes.'); }
     finally { setBusy(false); }
   }
@@ -100,7 +113,9 @@ export function useSwingUpload(enabled: boolean) {
     if (!file || !localUrl.current) return;
     const { video, loaded } = loadVideo(localUrl.current);
     // the down-the-line clip starts loading inside the same tap (iOS), read after the face-on clip
-    const dtlUrl = dtlFile && swingServerEnabled() ? URL.createObjectURL(dtlFile) : null;
+    // speed (and so club length) needs a slow-motion clip: at normal speed the second clip isn't read at all
+    const wantDtl = !!dtlFile && swingServerEnabled();
+    const dtlUrl = wantDtl && slowMo > 1 ? URL.createObjectURL(dtlFile) : null;
     const dtl = dtlUrl ? loadVideo(dtlUrl) : null;
     dtl?.loaded.catch(() => undefined);
     ctrl.current?.abort();
@@ -121,10 +136,11 @@ export function useSwingUpload(enabled: boolean) {
       if (swingServerEnabled() && result.detectedShare >= 0.6) {
         const heightCm = profileHeightCm();
         const body: SwingBody = swingPayload(result.frames, { sampleFps: result.fps, slowMo, width: video.videoWidth, height: video.videoHeight, heightCm });
+        if (wantDtl && !dtl) extraNotes.push('dtl_needs_slow_motion');
         if (dtl) {
           // Optional view: pose + club head at address on this device; a failure here only drops the shaft length.
           try {
-            await dtl.loaded;
+            await withTimeout(dtl.loaded, DTL_LOAD_TIMEOUT_MS, c.signal);
             const d = await analyzeVideo(dtl.video, { slowMo, onProgress: p => setProgress(Math.round((0.6 + p * 0.3) * 100)), signal: c.signal });
             if (d.detectedShare < 0.6) extraNotes.push('dtl_body_not_visible');
             else {
@@ -133,16 +149,23 @@ export function useSwingUpload(enabled: boolean) {
               dtlRead = true;
             }
           } catch (e) {
-            if (c.signal.aborted) return;
+            if (c.signal.aborted) throw e; // Stop: the outer handler returns to the preview
             console.warn('down-the-line clip not read', e);
             extraNotes.push('dtl_unreadable');
           }
           setProgress(95);
         }
         try {
-          server = await analyzeSwingOnServer(body, c.signal);
+          try {
+            server = await analyzeSwingOnServer(body, c.signal);
+          } catch (e) {
+            // a rejected down-the-line part must not cost the face-on read: retry once without it
+            if (c.signal.aborted || !body.dtl) throw e;
+            delete body.dtl; dtlRead = false; extraNotes.push('dtl_rejected');
+            server = await analyzeSwingOnServer(body, c.signal);
+          }
         } catch (e) {
-          if (c.signal.aborted) return;
+          if (c.signal.aborted) throw e;
           fallback = 'unreachable';
           console.warn('swing API unavailable, using on-device timing', e); // fallback, not an error for the golfer
         }
