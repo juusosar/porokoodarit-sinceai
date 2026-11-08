@@ -188,7 +188,7 @@ def fuse(a: Answers, m: Measurements) -> Fused:
     height = combine("height_cm", _asked("height_cm", a.height_cm) + meas(m.height_cm))
     w2f = combine("wrist_to_floor_cm", _asked("wrist_to_floor_cm", a.wrist_to_floor_cm) + meas(m.wrist_to_floor_cm))
 
-    speed_obs = _asked("speed_7i_mph", a.speed_7i_mph) + meas(m.speed_7i_mph)
+    speed_obs = _asked("speed_7i_mph", a.speed_7i_mph) + meas(m.speed_7i_mph) + meas(m.video_speed_7i_mph)
     if m.carry_7i_yd is not None:
         speed_obs.append(carry_to_speed(m.carry_7i_yd.value, a.own_7i_loft_deg, measured=True))
     elif a.carry_7i_yd is not None:

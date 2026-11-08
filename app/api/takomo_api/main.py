@@ -18,6 +18,8 @@ from .llm.chat import ChatReply, ChatRequest, chat, speakable, warmup
 from .llm.explain import Explanation, Role, explain
 from .ratelimit import RateLimiter, client_key
 from .schema import SCHEMA_VERSION, FitRequest, FitState
+from .swing.measure import analyze as analyze_swing
+from .swing.schema import SwingAnalysis, SwingAnalyzeRequest
 from .tts import router as voice
 
 # App logs (LLM latency, fallback causes) to stderr at INFO; uvicorn's own loggers do not propagate here.
@@ -43,6 +45,7 @@ def create_app() -> FastAPI:
     )
     limiter = RateLimiter(settings.explain_rate_per_min)
     chat_limiter = RateLimiter(settings.chat_rate_per_min)
+    swing_limiter = RateLimiter(settings.swing_rate_per_min)
     # Voice (TTS) is a self-contained module: TAKOMO_TTS_PROVIDER=none leaves no route and no token behind.
     voice_on = voice.enabled()
     if voice_on:
@@ -51,12 +54,13 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def body_cap(request: Request, call_next):
         if request.method in ("POST", "PUT"):
+            cap = settings.swing_max_body_bytes if request.url.path == "/v1/swing/analyze" else settings.max_body_bytes
             n = request.headers.get("content-length")
             if n is None or not n.isdigit():
                 body = await request.body()  # chunked: read and measure
-                if len(body) > settings.max_body_bytes:
+                if len(body) > cap:
                     return JSONResponse({"detail": "body too large"}, status_code=413)
-            elif int(n) > settings.max_body_bytes:
+            elif int(n) > cap:
                 return JSONResponse({"detail": "body too large"}, status_code=413)
         return await call_next(request)
 
@@ -68,6 +72,14 @@ def create_app() -> FastAPI:
     def fit(req: FitRequest) -> FitState:
         """Run the engine for the current step. Cheap + deterministic: call after every step."""
         return engine.run(req)
+
+    @app.post("/v1/swing/analyze", response_model=SwingAnalysis)
+    def swing_analyze(req: SwingAnalyzeRequest, request: Request) -> SwingAnalysis:
+        """main's swing algorithm on pose keypoints from the device (no video). Returns measurements only;
+        the device adds them to the next /v1/fit request. Nothing is stored or logged."""
+        if not swing_limiter.allow(client_key(request)):
+            raise HTTPException(429, "too many swing analyses, slow down")
+        return analyze_swing(req)
 
     class ExplainRequest(BaseModel):
         """Inputs, not a fit state: the server re-runs the engine so every label the LLM sees is its own."""

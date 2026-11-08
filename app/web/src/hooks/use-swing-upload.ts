@@ -4,16 +4,39 @@ import { inspectVideo } from '@/lib/video-metadata';
 import { analyzeVideo, PLAUSIBLE, plausibleTempo, type SwingAnalysis } from '@/lib/pose/analyze';
 import { getPoseLandmarker } from '@/lib/pose/landmarker';
 import { deleteSwing, readSwing, saveSwing, swingRecordSchema, type SwingRecord } from '@/lib/swing-store';
+import { analyzeSwingOnServer, swingPayload, swingServerEnabled, type SwingServerResult } from '@/lib/swing-server';
+import { lengthCm } from '@/lib/fit-request';
+import { fittingSchema } from '@/lib/fitting-schema';
+import { readLocal } from '@/lib/local-store';
 
 // Lab error model for video tempo: +-1 frame plus 12 ms (same as the legacy swing step).
 const TEMPO_EXTRA_SD_S = 0.012;
 
 type Timing = Awaited<ReturnType<typeof inspectVideo>>;
+type Candidate = { backswingS: number; downswingS: number; ratio: number | null; sd: number };
+
+/** Golfer height from the profile (scales hand travel for the speed estimate); null when not answered. */
+function profileHeightCm(): number | null {
+  try {
+    const snap = fittingSchema.safeParse(readLocal<unknown>('fitting', getFittingToken()));
+    const h = snap.success ? lengthCm(snap.data.profile.height?.value) : null;
+    return h !== null && h >= 120 && h <= 230 ? h : null;
+  } catch { return null; }
+}
+
+function serverCandidate(r: SwingServerResult | null): Candidate | null {
+  if (!r?.backswing_s || !r.downswing_s) return null;
+  const back = r.backswing_s.value, down = r.downswing_s.value;
+  return { backswingS: back, downswingS: down, ratio: Math.round((back / down) * 100) / 100, sd: Math.max(r.backswing_s.sd, r.downswing_s.sd) };
+}
+
+const usable = (c: Candidate | null): c is Candidate => !!c && plausibleTempo(c) && swingRecordSchema.shape.tempo.safeParse(c).success;
 export type Phase = 'selection' | 'preview' | 'analyzing' | 'saved';
 
 /**
- * Swing video flow. Replaces Lovable's private cloud upload: the video is read on this device with
- * MediaPipe pose (WASM, self-hosted) and only the timing numbers are kept. Nothing is uploaded.
+ * Swing video flow. The video is read on this device with MediaPipe pose (WASM, self-hosted); the video is never
+ * uploaded. Pose keypoints (numbers only) go to the API, which runs main's swing algorithm and returns tempo +
+ * an estimated club speed. If the API is off, unreachable or can't read the swing, the on-device tempo is used.
  */
 export function useSwingUpload(enabled: boolean) {
   const [phase, setPhase] = useState<Phase>('selection');
@@ -72,9 +95,25 @@ export function useSwingUpload(enabled: boolean) {
       if (c.signal.aborted) return;
       setAnalysis(result);
       const t = result.tempo;
-      const candidate = t ? { backswingS: t.backswingS, downswingS: t.downswingS, ratio: t.ratio, sd: t.frameUncertaintyS + TEMPO_EXTRA_SD_S } : null;
+      const device: Candidate | null = t ? { backswingS: t.backswingS, downswingS: t.downswingS, ratio: t.ratio, sd: t.frameUncertaintyS + TEMPO_EXTRA_SD_S } : null;
+      let server: SwingServerResult | null = null;
+      if (swingServerEnabled() && result.detectedShare >= 0.6) {
+        try {
+          const body = swingPayload(result.frames, { sampleFps: result.fps, slowMo, width: video.videoWidth, height: video.videoHeight, heightCm: profileHeightCm() });
+          server = await analyzeSwingOnServer(body, c.signal);
+        } catch (e) {
+          if (c.signal.aborted) return;
+          console.warn('swing API unavailable, using on-device timing', e); // fallback, not an error for the golfer
+        }
+      }
+      if (c.signal.aborted) return;
+      // Server (main's algorithm) first; the on-device read is the fallback.
+      const fromServer = serverCandidate(server);
+      const useServer = usable(fromServer);
+      const candidate = useServer ? fromServer : device;
       // Pose can misread a swing (e.g. impact 1 frame after top): implausible timing is dropped, not saved.
-      const plausible = !!candidate && plausibleTempo(candidate) && swingRecordSchema.shape.tempo.safeParse(candidate).success;
+      const plausible = usable(candidate);
+      const speed = useServer && server?.video_speed_7i_mph ? { value: Math.round(server.video_speed_7i_mph.value * 10) / 10, sd: server.video_speed_7i_mph.sd } : null;
       // Too slow for a real swing at normal speed: most likely a slow-motion file read as normal speed (POR-30).
       const looksSlowMo = !!candidate && slowMo === 1 && (candidate.backswingS > PLAUSIBLE.backswingS[1] || candidate.downswingS > PLAUSIBLE.downswingS[1]);
       if (looksSlowMo) {
@@ -86,6 +125,9 @@ export function useSwingUpload(enabled: boolean) {
       const saved: SwingRecord = {
         filename: file.name, size: file.size, encodedFps: timing?.encodedFps ?? null, slowMo, analyzedAt: new Date().toISOString(),
         tempo: plausible ? candidate : null,
+        speed: plausible ? speed : null,
+        source: plausible ? (useServer ? 'server' : 'device') : undefined,
+        ...(useServer && server ? { algorithm: server.algorithm.slice(0, 40) } : {}),
       };
       saveSwing(getFittingToken(), saved);
       setRecord(saved); setProgress(100); setPhase('saved');
